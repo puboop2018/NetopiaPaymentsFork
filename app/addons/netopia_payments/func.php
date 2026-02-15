@@ -10,6 +10,175 @@
 
 if (!defined('BOOTSTRAP')) { die('Access denied'); }
 
+use Tygh\Registry;
+
+/**
+ * Returns the directory path where NETOPIA key files are stored for a given payment method.
+ *
+ * @param int $payment_id CS-Cart payment method ID
+ * @return string Absolute path to the keys directory
+ */
+function fn_netopia_get_keys_dir(int $payment_id): string
+{
+    return Registry::get('config.dir.addons') . 'netopia_payments/keys/' . $payment_id . '/';
+}
+
+/**
+ * Load a NETOPIA key from file or from processor_params textarea fallback.
+ *
+ * Checks for an uploaded key file first. If not found, falls back to the
+ * content stored in the processor_params textarea.
+ *
+ * @param array  $processor_params Payment processor params
+ * @param string $key_type         'public_key' or 'private_key'
+ * @param int    $payment_id       CS-Cart payment method ID
+ * @return string PEM key content, or empty string if not available
+ */
+function fn_netopia_load_key(array $processor_params, string $key_type, int $payment_id): string
+{
+    // Priority 1: uploaded file
+    $file_field = $key_type . '_file';
+    if (!empty($processor_params[$file_field])) {
+        $keys_dir = fn_netopia_get_keys_dir($payment_id);
+        $file_path = $keys_dir . $processor_params[$file_field];
+        if (file_exists($file_path) && is_readable($file_path)) {
+            return trim(file_get_contents($file_path));
+        }
+    }
+
+    // Priority 2: textarea content
+    return trim($processor_params[$key_type] ?? '');
+}
+
+/**
+ * Hook: handle file uploads when a NETOPIA payment method is saved.
+ *
+ * Processes uploaded public_key and private_key files, validates them,
+ * stores them securely in the addon's keys directory, and updates
+ * the processor_params with the stored file names.
+ *
+ * @param array $payment_data  Payment method data being saved
+ * @param int   $payment_id    Payment method ID
+ * @param string $lang_code    Language code
+ */
+function fn_netopia_payments_update_payment_post(array $payment_data, int $payment_id, string $lang_code = ''): void
+{
+    // Only process if this is a NETOPIA payment processor
+    if (empty($payment_data['processor_id'])) {
+        return;
+    }
+
+    $processor_info = db_get_row('SELECT * FROM ?:payment_processors WHERE processor_id = ?i', $payment_data['processor_id']);
+    if (empty($processor_info) || $processor_info['processor_script'] !== 'netopia_payments.php') {
+        return;
+    }
+
+    $keys_dir = fn_netopia_get_keys_dir($payment_id);
+    $updated = false;
+    $params = [];
+
+    // Get current processor params
+    $payment_row = db_get_row('SELECT processor_params FROM ?:payments WHERE payment_id = ?i', $payment_id);
+    if (!empty($payment_row['processor_params'])) {
+        $params = unserialize($payment_row['processor_params']);
+        if (!is_array($params)) {
+            $params = [];
+        }
+    }
+
+    foreach (['public_key' => 'netopia_public_key_file', 'private_key' => 'netopia_private_key_file'] as $key_type => $file_input_name) {
+        if (empty($_FILES[$file_input_name]['name']) || $_FILES[$file_input_name]['error'] !== UPLOAD_ERR_OK) {
+            continue;
+        }
+
+        $upload = $_FILES[$file_input_name];
+
+        // Validate file extension
+        $ext = strtolower(pathinfo($upload['name'], PATHINFO_EXTENSION));
+        $allowed_extensions = ['pem', 'key', 'cer', 'crt', 'pub', 'txt'];
+        if (!in_array($ext, $allowed_extensions, true)) {
+            fn_set_notification('W', __('warning'), __('netopia_key_invalid_extension', ['[ext]' => $ext]));
+            continue;
+        }
+
+        // Validate file size (max 64KB - keys should be small)
+        if ($upload['size'] > 65536) {
+            fn_set_notification('W', __('warning'), __('netopia_key_too_large'));
+            continue;
+        }
+
+        // Read and validate content looks like a PEM key
+        $content = file_get_contents($upload['tmp_name']);
+        if ($content === false || empty(trim($content))) {
+            fn_set_notification('W', __('warning'), __('netopia_key_empty'));
+            continue;
+        }
+
+        // Create directory if needed
+        if (!is_dir($keys_dir)) {
+            fn_mkdir($keys_dir);
+        }
+
+        // Secure the directory
+        fn_netopia_secure_keys_dir($keys_dir);
+
+        // Save the file with a clean name
+        $safe_filename = $key_type . '.' . $ext;
+        $dest_path = $keys_dir . $safe_filename;
+
+        if (move_uploaded_file($upload['tmp_name'], $dest_path)) {
+            chmod($dest_path, 0640);
+            $params[$key_type . '_file'] = $safe_filename;
+
+            // Also populate the textarea param with the file content for runtime use
+            $params[$key_type] = trim($content);
+            $updated = true;
+
+            fn_set_notification('N', __('notice'), __('netopia_key_uploaded_' . $key_type));
+        } else {
+            fn_set_notification('W', __('warning'), __('netopia_key_upload_failed'));
+        }
+    }
+
+    // Handle deletion requests
+    foreach (['public_key', 'private_key'] as $key_type) {
+        if (!empty($_POST['delete_netopia_' . $key_type])) {
+            $file_field = $key_type . '_file';
+            if (!empty($params[$file_field])) {
+                $file_to_delete = $keys_dir . $params[$file_field];
+                if (file_exists($file_to_delete)) {
+                    unlink($file_to_delete);
+                }
+                unset($params[$file_field]);
+                $params[$key_type] = '';
+                $updated = true;
+            }
+        }
+    }
+
+    if ($updated) {
+        db_query('UPDATE ?:payments SET processor_params = ?s WHERE payment_id = ?i', serialize($params), $payment_id);
+    }
+}
+
+/**
+ * Write security files (.htaccess, index.html) to prevent direct web access to keys.
+ *
+ * @param string $dir Directory to secure
+ */
+function fn_netopia_secure_keys_dir(string $dir): void
+{
+    $htaccess = $dir . '.htaccess';
+    if (!file_exists($htaccess)) {
+        file_put_contents($htaccess, "Order Deny,Allow\nDeny from all\n");
+    }
+
+    $index = $dir . 'index.html';
+    if (!file_exists($index)) {
+        file_put_contents($index, '');
+    }
+}
+
 /**
  * ISO 3166-1 alpha-2 to numeric country code mapping.
  * NETOPIA API requires numeric country codes.

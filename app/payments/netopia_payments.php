@@ -222,7 +222,7 @@ function fn_netopia_handle_ipn(): void
     }
 
     $params = $processor_data['processor_params'];
-    $public_key = trim($params['public_key'] ?? '');
+    $public_key = fn_netopia_load_key($params, 'public_key', (int) $order_info['payment_id']);
 
     if (empty($public_key)) {
         fn_netopia_ipn_response(2, 5, 'Public key not configured');

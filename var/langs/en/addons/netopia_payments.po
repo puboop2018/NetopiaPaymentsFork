@@ -62,6 +62,36 @@ msgstr "Private Key"
 msgid "netopia_private_key_description"
 msgstr "Your private key in PEM format. Provided by NETOPIA for payment signing. Upload from your NETOPIA merchant dashboard."
 
+msgid "netopia_upload_key_file"
+msgstr "Upload key file"
+
+msgid "netopia_current_file"
+msgstr "Uploaded file"
+
+msgid "netopia_delete_key_file"
+msgstr "Delete file"
+
+msgid "netopia_or_paste_key"
+msgstr "Or paste key content manually"
+
+msgid "netopia_key_uploaded_public_key"
+msgstr "NETOPIA public key file uploaded successfully."
+
+msgid "netopia_key_uploaded_private_key"
+msgstr "NETOPIA private key file uploaded successfully."
+
+msgid "netopia_key_upload_failed"
+msgstr "Failed to upload key file. Please check file permissions."
+
+msgid "netopia_key_invalid_extension"
+msgstr "Invalid key file extension '[ext]'. Allowed: .pem, .key, .cer, .crt, .pub, .txt"
+
+msgid "netopia_key_too_large"
+msgstr "Key file is too large. Maximum size is 64KB."
+
+msgid "netopia_key_empty"
+msgstr "Key file appears to be empty."
+
 msgid "netopia_configuration_error"
 msgstr "NETOPIA Payments is not properly configured. Please contact the store administrator."
 
