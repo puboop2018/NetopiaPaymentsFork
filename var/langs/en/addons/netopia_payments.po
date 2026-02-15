@@ -50,6 +50,69 @@ msgstr "Maximum Installments"
 msgid "netopia_max_installments_description"
 msgstr "Maximum number of installments available to the customer (2-36). Only applies when installments are enabled."
 
+msgid "netopia_status_mapping_section"
+msgstr "Order Status Mapping"
+
+msgid "netopia_status_mapping_description"
+msgstr "Map each NETOPIA payment status to a CS-Cart order status. The defaults work for most stores. Custom order statuses are supported."
+
+msgid "netopia_status_group_success"
+msgstr "Success Statuses"
+
+msgid "netopia_status_group_pending"
+msgstr "Pending / In-Progress Statuses"
+
+msgid "netopia_status_group_cancel"
+msgstr "Cancellation / Refund Statuses"
+
+msgid "netopia_status_group_fail"
+msgstr "Failure Statuses"
+
+msgid "netopia_ntp_status_3"
+msgstr "Paid"
+
+msgid "netopia_ntp_status_5"
+msgstr "Confirmed"
+
+msgid "netopia_ntp_status_1"
+msgstr "New"
+
+msgid "netopia_ntp_status_2"
+msgstr "Opened"
+
+msgid "netopia_ntp_status_6"
+msgstr "Pending"
+
+msgid "netopia_ntp_status_14"
+msgstr "Pending Auth"
+
+msgid "netopia_ntp_status_15"
+msgstr "3D Secure"
+
+msgid "netopia_ntp_status_18"
+msgstr "Pending (Any)"
+
+msgid "netopia_ntp_status_4"
+msgstr "Canceled"
+
+msgid "netopia_ntp_status_8"
+msgstr "Refund / Credit"
+
+msgid "netopia_ntp_status_17"
+msgstr "Reversed"
+
+msgid "netopia_ntp_status_11"
+msgstr "Error"
+
+msgid "netopia_ntp_status_12"
+msgstr "Declined"
+
+msgid "netopia_ntp_status_13"
+msgstr "Fraud"
+
+msgid "netopia_ntp_status_23"
+msgstr "Expired"
+
 msgid "netopia_sandbox_keys_section"
 msgstr "Sandbox Certificates (Test Environment)"
 

@@ -163,8 +163,8 @@ if ($error_code === '100' && $ntp_status === 15) {
     fn_update_order_payment_info($order_id, $payment_info_update);
 
     $pp_response = [
-        'order_status' => 'P',
-        'reason_text'  => 'Payment approved. NTP ID: ' . $ntp_id,
+        'order_status'   => fn_netopia_map_order_status($ntp_status, $params),
+        'reason_text'    => 'Payment approved. NTP ID: ' . $ntp_id,
         'transaction_id' => $ntp_id,
     ];
 
@@ -179,8 +179,8 @@ if ($error_code === '100' && $ntp_status === 15) {
     fn_update_order_payment_info($order_id, $payment_info_update);
 
     $pp_response = [
-        'order_status' => 'F',
-        'reason_text'  => 'NETOPIA: ' . $error_msg . ' (code: ' . $error_code . ', status: ' . $ntp_status . ')',
+        'order_status'   => fn_netopia_map_order_status($ntp_status, $params),
+        'reason_text'    => 'NETOPIA: ' . $error_msg . ' (code: ' . $error_code . ', status: ' . $ntp_status . ')',
         'transaction_id' => $ntp_id,
     ];
 }
@@ -246,7 +246,7 @@ function fn_netopia_handle_ipn(): void
     $amount     = (float) ($ipn_data['payment']['amount'] ?? 0);
 
     // Idempotency: skip if order is already in a final state matching this IPN
-    $cs_status = fn_netopia_map_order_status($ntp_status);
+    $cs_status = fn_netopia_map_order_status($ntp_status, $params);
     $current_status = $order_info['status'] ?? '';
     if ($current_status === $cs_status && in_array($current_status, ['P', 'F', 'I'], true)) {
         fn_netopia_ipn_response(1, 0, 'OK (already processed)');
@@ -356,7 +356,7 @@ function fn_netopia_handle_3ds_return(): void
     if (($error_code === '0' || $error_code === '00') && ($ntp_status === 3 || $ntp_status === 5)) {
         // 3DS verification successful, payment approved
         $pp_response = [
-            'order_status'   => 'P',
+            'order_status'   => fn_netopia_map_order_status($ntp_status, $params),
             'reason_text'    => 'Payment approved after 3D Secure. NTP ID: ' . $verify_ntp,
             'transaction_id' => $verify_ntp,
         ];
@@ -364,7 +364,7 @@ function fn_netopia_handle_3ds_return(): void
         // 3DS verification failed or payment not approved
         $error_msg = $verify_data['error']['message'] ?? 'Verification failed';
         $pp_response = [
-            'order_status'   => 'F',
+            'order_status'   => fn_netopia_map_order_status($ntp_status, $params),
             'reason_text'    => 'NETOPIA 3DS: ' . $error_msg . ' (code: ' . $error_code . ', status: ' . $ntp_status . ')',
             'transaction_id' => $verify_ntp,
         ];

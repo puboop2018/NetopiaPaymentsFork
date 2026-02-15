@@ -584,27 +584,61 @@ function fn_netopia_base64url_decode(string $data): string
 }
 
 /**
+ * Return NETOPIA status definitions: code, label, and default CS-Cart mapping.
+ *
+ * Used by both the admin template (to render dropdowns) and the mapping function.
+ * Accepts a dummy parameter so it can be called as a Smarty modifier:
+ *   {$ntp_statuses = ""|fn_netopia_get_status_definitions}
+ *
+ * @param mixed $dummy Unused (required for Smarty modifier compatibility)
+ * @return array Array of [code => ['label' => string, 'default' => string, 'group' => string]]
+ */
+function fn_netopia_get_status_definitions($dummy = null): array
+{
+    return [
+        3  => ['label' => 'Paid',        'default' => 'P', 'group' => 'success'],
+        5  => ['label' => 'Confirmed',   'default' => 'P', 'group' => 'success'],
+        1  => ['label' => 'New',         'default' => 'O', 'group' => 'pending'],
+        2  => ['label' => 'Opened',      'default' => 'O', 'group' => 'pending'],
+        6  => ['label' => 'Pending',     'default' => 'O', 'group' => 'pending'],
+        14 => ['label' => 'PendingAuth', 'default' => 'O', 'group' => 'pending'],
+        15 => ['label' => '3D Secure',   'default' => 'O', 'group' => 'pending'],
+        18 => ['label' => 'PendingAny',  'default' => 'O', 'group' => 'pending'],
+        4  => ['label' => 'Canceled',    'default' => 'I', 'group' => 'cancel'],
+        8  => ['label' => 'Refund',      'default' => 'I', 'group' => 'cancel'],
+        17 => ['label' => 'Reversed',    'default' => 'I', 'group' => 'cancel'],
+        11 => ['label' => 'Error',       'default' => 'F', 'group' => 'fail'],
+        12 => ['label' => 'Declined',    'default' => 'F', 'group' => 'fail'],
+        13 => ['label' => 'Fraud',       'default' => 'F', 'group' => 'fail'],
+        23 => ['label' => 'Expired',     'default' => 'F', 'group' => 'fail'],
+    ];
+}
+
+/**
  * Map NETOPIA payment status code to CS-Cart order status.
  *
- * @param int $netopia_status NETOPIA payment status code
+ * Checks the custom mapping in processor_params first (keys like "status_map_3"),
+ * then falls back to built-in defaults.
+ *
+ * @param int   $netopia_status   NETOPIA payment status code
+ * @param array $processor_params Processor configuration (optional, for custom mapping)
  * @return string CS-Cart order status letter
  */
-function fn_netopia_map_order_status(int $netopia_status): string
+function fn_netopia_map_order_status(int $netopia_status, array $processor_params = []): string
 {
-    return match ($netopia_status) {
-        3, 5    => 'P',  // Paid / Confirmed → Processed
-        1       => 'O',  // New → Open
-        2, 6,
-        14, 15,
-        18      => 'O',  // Opened/Pending/PendingAuth/3DAuth/PendingAny → Open
-        4       => 'I',  // Canceled → Canceled (Incomplete)
-        8       => 'I',  // Credit/Refund → Canceled
-        11, 12  => 'F',  // Error/Declined → Failed
-        13      => 'F',  // Fraud → Failed
-        17      => 'I',  // Reversed → Canceled
-        23      => 'F',  // Expired → Failed
-        default => 'O',  // Default → Open
-    };
+    // Check custom mapping from admin configuration
+    $map_key = 'status_map_' . $netopia_status;
+    if (!empty($processor_params[$map_key])) {
+        return $processor_params[$map_key];
+    }
+
+    // Fall back to built-in defaults
+    $definitions = fn_netopia_get_status_definitions();
+    if (isset($definitions[$netopia_status])) {
+        return $definitions[$netopia_status]['default'];
+    }
+
+    return 'O'; // Unknown status → Open
 }
 
 /**

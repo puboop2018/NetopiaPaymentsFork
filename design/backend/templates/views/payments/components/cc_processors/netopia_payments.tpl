@@ -83,6 +83,87 @@
 </div>
 
 {* ================================================================ *}
+{* ---- ORDER STATUS MAPPING ---- *}
+{* ================================================================ *}
+{$order_statuses = "O"|fn_get_simple_statuses}
+{$ntp_statuses = ""|fn_netopia_get_status_definitions}
+
+<fieldset>
+    <legend style="border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 15px;">
+        {__("netopia_status_mapping_section")}
+    </legend>
+    <p class="muted description" style="margin-bottom: 15px;">{__("netopia_status_mapping_description")}</p>
+
+    {* Group: Success *}
+    <div style="margin-bottom: 10px;"><strong style="color: #468847;">{__("netopia_status_group_success")}</strong></div>
+    {foreach from=$ntp_statuses key="ntp_code" item="ntp_info"}
+        {if $ntp_info.group == "success"}
+        <div class="control-group">
+            <label class="control-label">{__("netopia_ntp_status_`$ntp_code`")} <span class="muted">(#{$ntp_code})</span>:</label>
+            <div class="controls">
+                <select name="payment_data[processor_params][status_map_{$ntp_code}]">
+                    {foreach from=$order_statuses key="cs_code" item="cs_label"}
+                        <option value="{$cs_code}" {if ($processor_params.status_map_{$ntp_code}|default:$ntp_info.default) == $cs_code}selected="selected"{/if}>[{$cs_code}] {$cs_label}</option>
+                    {/foreach}
+                </select>
+            </div>
+        </div>
+        {/if}
+    {/foreach}
+
+    {* Group: Pending *}
+    <div style="margin-bottom: 10px; margin-top: 15px;"><strong style="color: #c09853;">{__("netopia_status_group_pending")}</strong></div>
+    {foreach from=$ntp_statuses key="ntp_code" item="ntp_info"}
+        {if $ntp_info.group == "pending"}
+        <div class="control-group">
+            <label class="control-label">{__("netopia_ntp_status_`$ntp_code`")} <span class="muted">(#{$ntp_code})</span>:</label>
+            <div class="controls">
+                <select name="payment_data[processor_params][status_map_{$ntp_code}]">
+                    {foreach from=$order_statuses key="cs_code" item="cs_label"}
+                        <option value="{$cs_code}" {if ($processor_params.status_map_{$ntp_code}|default:$ntp_info.default) == $cs_code}selected="selected"{/if}>[{$cs_code}] {$cs_label}</option>
+                    {/foreach}
+                </select>
+            </div>
+        </div>
+        {/if}
+    {/foreach}
+
+    {* Group: Cancel/Refund *}
+    <div style="margin-bottom: 10px; margin-top: 15px;"><strong style="color: #b94a48;">{__("netopia_status_group_cancel")}</strong></div>
+    {foreach from=$ntp_statuses key="ntp_code" item="ntp_info"}
+        {if $ntp_info.group == "cancel"}
+        <div class="control-group">
+            <label class="control-label">{__("netopia_ntp_status_`$ntp_code`")} <span class="muted">(#{$ntp_code})</span>:</label>
+            <div class="controls">
+                <select name="payment_data[processor_params][status_map_{$ntp_code}]">
+                    {foreach from=$order_statuses key="cs_code" item="cs_label"}
+                        <option value="{$cs_code}" {if ($processor_params.status_map_{$ntp_code}|default:$ntp_info.default) == $cs_code}selected="selected"{/if}>[{$cs_code}] {$cs_label}</option>
+                    {/foreach}
+                </select>
+            </div>
+        </div>
+        {/if}
+    {/foreach}
+
+    {* Group: Failure *}
+    <div style="margin-bottom: 10px; margin-top: 15px;"><strong style="color: #b94a48;">{__("netopia_status_group_fail")}</strong></div>
+    {foreach from=$ntp_statuses key="ntp_code" item="ntp_info"}
+        {if $ntp_info.group == "fail"}
+        <div class="control-group">
+            <label class="control-label">{__("netopia_ntp_status_`$ntp_code`")} <span class="muted">(#{$ntp_code})</span>:</label>
+            <div class="controls">
+                <select name="payment_data[processor_params][status_map_{$ntp_code}]">
+                    {foreach from=$order_statuses key="cs_code" item="cs_label"}
+                        <option value="{$cs_code}" {if ($processor_params.status_map_{$ntp_code}|default:$ntp_info.default) == $cs_code}selected="selected"{/if}>[{$cs_code}] {$cs_label}</option>
+                    {/foreach}
+                </select>
+            </div>
+        </div>
+        {/if}
+    {/foreach}
+</fieldset>
+
+{* ================================================================ *}
 {* ---- SANDBOX CERTIFICATES ---- *}
 {* ================================================================ *}
 <fieldset>
