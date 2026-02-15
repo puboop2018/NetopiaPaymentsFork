@@ -238,3 +238,21 @@ msgstr "Complete your payment for Order #[order_id]"
 
 msgid "netopia_payment_link_email_body"
 msgstr "Dear [customer_name],\n\nYour payment for Order #[order_id] ([amount]) is pending.\n\nPlease complete your payment using the secure link below:\n[payment_url]\n\nThis link will take you to a secure NETOPIA payment page where you can enter your card details.\n\nIf you have already completed this payment, please disregard this email.\n\nThank you,\n[company_name]"
+
+msgid "netopia_transaction_info"
+msgstr "NETOPIA Transaction"
+
+msgid "netopia_ntp_id_label"
+msgstr "NTP ID"
+
+msgid "netopia_status_label"
+msgstr "Payment Status"
+
+msgid "netopia_amount_label"
+msgstr "Amount"
+
+msgid "netopia_error_code_label"
+msgstr "Error Code"
+
+msgid "netopia_error_message_label"
+msgstr "Error Message"
