@@ -20,7 +20,7 @@ class Request extends Start {
     public function setPayment($cardData, $threeDSecusreData) {
         $threeDSecusreData = json_decode($threeDSecusreData);
         $threeDSecusreData->IP_ADDRESS = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : "127.0.0.1";
-        
+
         $payment = array(
             'options' => [
                 'installments' => (int) 1,
@@ -37,6 +37,51 @@ class Request extends Start {
             'data' =>  $threeDSecusreData
         );
         return $payment;
+    }
+
+    /**
+     * Build payment data with empty instrument fields.
+     * This triggers the hosted payment page flow (error code 101),
+     * returning a paymentURL that can be sent to the customer.
+     */
+    public function setPaymentForLink($threeDSecusreData) {
+        if (is_string($threeDSecusreData)) {
+            $threeDSecusreData = json_decode($threeDSecusreData);
+        }
+        if (is_object($threeDSecusreData)) {
+            $threeDSecusreData->IP_ADDRESS = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : "127.0.0.1";
+        }
+
+        $payment = array(
+            'options' => [
+                'installments' => (int) 1,
+                'bonus'        => (int) 0
+            ],
+            'instrument' => [
+                'type'       => (string) "card",
+                'account'    => (string) "",
+                'expMonth'   => (int) 0,
+                'expYear'    => (int) 0,
+                'secretCode' => (string) "",
+                'token'      => null
+            ],
+            'data' => $threeDSecusreData
+        );
+        return $payment;
+    }
+
+    /**
+     * Build a payment link request (hosted payment page).
+     * Same as setRequest but with empty instrument fields.
+     */
+    public function setPaymentLinkRequest($configData, $orderData, $threeDSecusreData = null) {
+        $startArr = array(
+            'config'  => $this->setConfig($configData),
+            'payment' => $this->setPaymentForLink($threeDSecusreData),
+            'order'   => $this->setOrder($orderData)
+        );
+
+        return json_encode($startArr);
     }
 
     /**

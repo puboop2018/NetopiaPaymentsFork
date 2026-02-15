@@ -156,6 +156,27 @@ if ($error_code === '100' && $ntp_status === 15) {
     fn_create_payment_form($bank_url, $form_data, 'NETOPIA 3D Secure', false);
     exit;
 
+} elseif ($error_code === '101' && !empty($payment_data['paymentURL'])) {
+    // -------------------------------------------------------------------
+    // Hosted Payment Page — redirect customer to NETOPIA payment page
+    // -------------------------------------------------------------------
+    $payment_url = (string) $payment_data['paymentURL'];
+
+    $payment_info_update['netopia_payment_link']    = $payment_url;
+    $payment_info_update['netopia_payment_link_at'] = date('c');
+    fn_update_order_payment_info($order_id, $payment_info_update);
+
+    // Store order_id in session for the return callback
+    Tygh::$app['session']['netopia_order_id'] = $order_id;
+    Tygh::$app['session']['netopia_payment_id'] = $order_info['payment_id'];
+
+    // Set order to "Open" while awaiting payment
+    fn_change_order_status($order_id, 'O', '', false);
+
+    // Redirect customer to NETOPIA hosted payment page
+    fn_redirect($payment_url, true);
+    exit;
+
 } elseif (($error_code === '0' || $error_code === '00') && ($ntp_status === 3 || $ntp_status === 5)) {
     // -------------------------------------------------------------------
     // Payment Approved directly (no 3DS needed)

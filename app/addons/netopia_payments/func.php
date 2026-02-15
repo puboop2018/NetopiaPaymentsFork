@@ -661,6 +661,295 @@ function fn_netopia_build_verify_auth_request(string $authentication_token, stri
 }
 
 /**
+ * Build the JSON payload for a NETOPIA payment link request.
+ *
+ * Uses the same /payment/card/start endpoint but with empty instrument fields,
+ * which causes NETOPIA to return error code 101 with a paymentURL for a
+ * hosted payment page the customer can use to pay.
+ *
+ * @param array $processor_params Processor configuration from admin
+ * @param array $order_info       CS-Cart order information
+ * @param int   $installments     Number of installments (1 = no installments)
+ * @return string JSON-encoded request body
+ */
+function fn_netopia_build_payment_link_request(array $processor_params, array $order_info, int $installments = 1): string
+{
+    $notify_url  = fn_url('payment_notification.notify?payment=netopia_payments', AREA, 'current');
+    $redirect_url = fn_url('payment_notification.return?payment=netopia_payments', AREA, 'current');
+
+    // Determine currency
+    $currency = 'RON';
+    if (!empty($processor_params['currency'])) {
+        if ($processor_params['currency'] === 'order_currency') {
+            $currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
+        } else {
+            $currency = $processor_params['currency'];
+        }
+    }
+
+    // Convert amount to the selected currency
+    $order_currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
+    $amount = (float) $order_info['total'];
+    if ($currency !== $order_currency) {
+        $amount = fn_format_price_by_currency($order_info['total'], CART_PRIMARY_CURRENCY, $currency);
+    }
+
+    $billing_country = fn_netopia_get_country_numeric_code($order_info['b_country'] ?? 'RO');
+    $shipping_country = fn_netopia_get_country_numeric_code($order_info['s_country'] ?? $order_info['b_country'] ?? 'RO');
+
+    // Build product list
+    $products = [];
+    if (!empty($order_info['products'])) {
+        foreach ($order_info['products'] as $product) {
+            $products[] = [
+                'name'     => (string) ($product['product'] ?? 'Product'),
+                'code'     => (string) ($product['product_code'] ?? $product['product_id'] ?? ''),
+                'category' => 'General',
+                'price'    => (float) ($product['price'] ?? 0),
+                'vat'      => 0,
+            ];
+        }
+    }
+    if (empty($products)) {
+        $products[] = [
+            'name'     => 'Order #' . $order_info['order_id'],
+            'code'     => (string) $order_info['order_id'],
+            'category' => 'General',
+            'price'    => $amount,
+            'vat'      => 0,
+        ];
+    }
+
+    // Installments configuration
+    $installments_selected = max(1, $installments);
+    $installments_available = [0];
+    if ($installments_selected > 1) {
+        $installments_available = range(2, $installments_selected);
+        array_unshift($installments_available, 0);
+    }
+
+    // 3DS data — use server defaults since this is an admin-initiated request
+    $three_ds_data = [
+        'BROWSER_USER_AGENT'    => $_SERVER['HTTP_USER_AGENT'] ?? 'NETOPIA Payment Link',
+        'OS'                    => php_uname('s'),
+        'OS_VERSION'            => php_uname('r'),
+        'MOBILE'                => 'false',
+        'SCREEN_POINT'          => 'false',
+        'SCREEN_PRINT'          => 'Current Resolution: 1920x1080',
+        'BROWSER_COLOR_DEPTH'   => '24',
+        'BROWSER_SCREEN_HEIGHT' => '1080',
+        'BROWSER_SCREEN_WIDTH'  => '1920',
+        'BROWSER_PLUGINS'       => '',
+        'BROWSER_JAVA_ENABLED'  => 'false',
+        'BROWSER_LANGUAGE'      => 'en-US',
+        'BROWSER_TZ'            => 'Europe/Bucharest',
+        'BROWSER_TZ_OFFSET'     => '0',
+        'IP_ADDRESS'            => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
+    ];
+
+    $payload = [
+        'config' => [
+            'emailTemplate' => 'confirm',
+            'notifyUrl'     => $notify_url,
+            'redirectUrl'   => $redirect_url,
+            'language'      => 'RO',
+        ],
+        'payment' => [
+            'options' => [
+                'installments' => $installments_selected,
+                'bonus'        => 0,
+            ],
+            'instrument' => [
+                'type'       => 'card',
+                'account'    => '',
+                'expMonth'   => 0,
+                'expYear'    => 0,
+                'secretCode' => '',
+                'token'      => null,
+            ],
+            'data' => $three_ds_data,
+        ],
+        'order' => [
+            'ntpID'        => null,
+            'posSignature' => (string) $processor_params['pos_signature'],
+            'dateTime'     => date('c'),
+            'description'  => 'Order #' . $order_info['order_id'],
+            'orderID'      => (string) $order_info['order_id'],
+            'amount'       => $amount,
+            'currency'     => $currency,
+            'billing' => [
+                'email'      => (string) ($order_info['email'] ?? ''),
+                'phone'      => (string) ($order_info['b_phone'] ?? $order_info['phone'] ?? ''),
+                'firstName'  => (string) ($order_info['b_firstname'] ?? ''),
+                'lastName'   => (string) ($order_info['b_lastname'] ?? ''),
+                'city'       => (string) ($order_info['b_city'] ?? ''),
+                'country'    => $billing_country,
+                'state'      => (string) ($order_info['b_state_descr'] ?? $order_info['b_state'] ?? ''),
+                'postalCode' => (string) ($order_info['b_zipcode'] ?? ''),
+                'details'    => (string) ($order_info['b_address'] ?? '') . ' ' . ($order_info['b_address_2'] ?? ''),
+            ],
+            'shipping' => [
+                'email'      => (string) ($order_info['email'] ?? ''),
+                'phone'      => (string) ($order_info['s_phone'] ?? $order_info['phone'] ?? ''),
+                'firstName'  => (string) ($order_info['s_firstname'] ?? $order_info['b_firstname'] ?? ''),
+                'lastName'   => (string) ($order_info['s_lastname'] ?? $order_info['b_lastname'] ?? ''),
+                'city'       => (string) ($order_info['s_city'] ?? $order_info['b_city'] ?? ''),
+                'country'    => $shipping_country,
+                'state'      => (string) ($order_info['s_state_descr'] ?? $order_info['s_state'] ?? $order_info['b_state'] ?? ''),
+                'postalCode' => (string) ($order_info['s_zipcode'] ?? $order_info['b_zipcode'] ?? ''),
+                'details'    => (string) ($order_info['s_address'] ?? $order_info['b_address'] ?? '') . ' ' . ($order_info['s_address_2'] ?? ''),
+            ],
+            'products'     => $products,
+            'installments' => [
+                'selected'  => $installments_selected,
+                'available' => $installments_available,
+            ],
+            'data' => null,
+        ],
+    ];
+
+    return json_encode($payload);
+}
+
+/**
+ * Generate a NETOPIA payment link for an order.
+ *
+ * Calls /payment/card/start with empty instrument fields to get a hosted
+ * payment page URL. Stores the payment link and NTP ID in order payment info.
+ *
+ * @param int $order_id CS-Cart order ID
+ * @return array{success: bool, payment_url: string, error: string}
+ */
+function fn_netopia_generate_payment_link(int $order_id): array
+{
+    $order_info = fn_get_order_info($order_id);
+    if (empty($order_info)) {
+        return ['success' => false, 'payment_url' => '', 'error' => 'Order not found.'];
+    }
+
+    $processor_data = fn_get_payment_method_data($order_info['payment_id']);
+    if (empty($processor_data['processor_params'])) {
+        return ['success' => false, 'payment_url' => '', 'error' => 'Payment processor not configured.'];
+    }
+
+    $params = $processor_data['processor_params'];
+
+    if (empty($params['pos_signature']) || empty($params['api_key'])) {
+        return ['success' => false, 'payment_url' => '', 'error' => 'NETOPIA POS Signature or API Key missing.'];
+    }
+
+    $is_live = !empty($params['mode']) && $params['mode'] === 'live';
+
+    // Determine installments
+    $installments = 1;
+    if (!empty($params['allow_installments']) && $params['allow_installments'] === 'Y') {
+        $installments = (int) ($params['max_installments'] ?? 1);
+    }
+
+    // Build the payment link request (empty instrument)
+    $json_request = fn_netopia_build_payment_link_request($params, $order_info, $installments);
+
+    // Send to NETOPIA API
+    $response = fn_netopia_api_request('payment/card/start', $json_request, $params['api_key'], $is_live);
+
+    if ($response['status'] !== 1 || empty($response['data'])) {
+        $error_message = $response['data']['message'] ?? $response['message'] ?? 'Connection error';
+        return ['success' => false, 'payment_url' => '', 'error' => 'NETOPIA API error: ' . $error_message];
+    }
+
+    $data = $response['data'];
+
+    // Handle nested data structure (API may wrap in data.data)
+    $inner_data = $data['data'] ?? $data;
+    $error_code = (string) ($inner_data['error']['code'] ?? $data['error']['code'] ?? '');
+    $payment_data = $inner_data['payment'] ?? $data['payment'] ?? [];
+    $payment_url = (string) ($payment_data['paymentURL'] ?? '');
+    $ntp_id = (string) ($payment_data['ntpID'] ?? '');
+
+    // Error code 101 = "Redirect user to payment page" — this is the expected response
+    if ($error_code === '101' && !empty($payment_url)) {
+        // Store payment link info in order payment info
+        $payment_info_update = [
+            'netopia_ntp_id'          => $ntp_id,
+            'netopia_payment_link'    => $payment_url,
+            'netopia_payment_link_at' => date('c'),
+            'transaction_id'          => $ntp_id,
+        ];
+        fn_update_order_payment_info($order_id, $payment_info_update);
+
+        // Set order to Open status while awaiting payment
+        fn_change_order_status($order_id, 'O', '', false);
+
+        return ['success' => true, 'payment_url' => $payment_url, 'error' => ''];
+    }
+
+    // If we got a different response, report it
+    $error_msg = $inner_data['error']['message'] ?? $data['error']['message'] ?? 'Unexpected response (code: ' . $error_code . ')';
+    return ['success' => false, 'payment_url' => '', 'error' => $error_msg];
+}
+
+/**
+ * Send a payment link email to the customer for an order.
+ *
+ * @param int    $order_id    CS-Cart order ID
+ * @param string $payment_url NETOPIA hosted payment page URL
+ * @return bool True if email was sent successfully
+ */
+function fn_netopia_send_payment_link_email(int $order_id, string $payment_url): bool
+{
+    $order_info = fn_get_order_info($order_id);
+    if (empty($order_info) || empty($order_info['email'])) {
+        return false;
+    }
+
+    $customer_name = trim(($order_info['b_firstname'] ?? '') . ' ' . ($order_info['b_lastname'] ?? ''));
+    if (empty($customer_name)) {
+        $customer_name = $order_info['email'];
+    }
+
+    $company_name = Registry::get('settings.Company.company_name') ?: 'Our Store';
+    $amount = fn_format_price($order_info['total'], $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY);
+    $currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
+
+    $subject = __('netopia_payment_link_email_subject', ['[order_id]' => $order_id]);
+    $body = __('netopia_payment_link_email_body', [
+        '[customer_name]' => $customer_name,
+        '[order_id]'      => $order_id,
+        '[amount]'        => $amount . ' ' . $currency,
+        '[payment_url]'   => $payment_url,
+        '[company_name]'  => $company_name,
+    ]);
+
+    // Use CS-Cart's mailer
+    $mailer = Tygh::$app['mailer'];
+    $result = $mailer->send([
+        'to'      => $order_info['email'],
+        'from'    => 'default_company_orders_department',
+        'data'    => [
+            'subject'     => $subject,
+            'body'        => nl2br($body),
+            'order_info'  => $order_info,
+            'payment_url' => $payment_url,
+        ],
+        'template_code' => 'netopia_payment_link',
+        'tpl'     => 'addons/netopia_payments/payment_link_email.tpl',
+    ], 'A');
+
+    // Fallback: if template-based sending fails, try simple mail
+    if (!$result) {
+        $result = $mailer->send([
+            'to'      => $order_info['email'],
+            'from'    => 'default_company_orders_department',
+            'data'    => [],
+            'subject' => $subject,
+            'body'    => nl2br($body),
+        ], 'A');
+    }
+
+    return (bool) $result;
+}
+
+/**
  * Build the JSON payload for NETOPIA Status query.
  *
  * @param string $pos_signature Merchant POS signature

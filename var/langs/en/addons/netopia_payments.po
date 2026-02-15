@@ -199,3 +199,42 @@ msgstr "Payment was declined by NETOPIA."
 
 msgid "netopia_payment_error"
 msgstr "An error occurred during NETOPIA payment processing."
+
+msgid "netopia_send_payment_link"
+msgstr "NETOPIA Payment Link"
+
+msgid "netopia_payment_link_send_email"
+msgstr "Generate & email link to customer"
+
+msgid "netopia_payment_link_generate_only"
+msgstr "Generate link only (copy manually)"
+
+msgid "netopia_payment_link_label"
+msgstr "NETOPIA Payment Link"
+
+msgid "netopia_payment_link_generated_at"
+msgstr "Generated at"
+
+msgid "netopia_payment_link_emailed_to"
+msgstr "Emailed to"
+
+msgid "netopia_payment_link_no_order"
+msgstr "No order specified for payment link generation."
+
+msgid "netopia_payment_link_error"
+msgstr "Failed to generate NETOPIA payment link: [error]"
+
+msgid "netopia_payment_link_generated"
+msgstr "NETOPIA payment link generated successfully: [url]"
+
+msgid "netopia_payment_link_sent"
+msgstr "Payment link email sent to [email]."
+
+msgid "netopia_payment_link_email_failed"
+msgstr "Payment link was generated but the email could not be sent. You can copy the link manually from the order details."
+
+msgid "netopia_payment_link_email_subject"
+msgstr "Complete your payment for Order #[order_id]"
+
+msgid "netopia_payment_link_email_body"
+msgstr "Dear [customer_name],\n\nYour payment for Order #[order_id] ([amount]) is pending.\n\nPlease complete your payment using the secure link below:\n[payment_url]\n\nThis link will take you to a secure NETOPIA payment page where you can enter your card details.\n\nIf you have already completed this payment, please disregard this email.\n\nThank you,\n[company_name]"
