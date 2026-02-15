@@ -65,72 +65,128 @@
     </div>
 </div>
 
-{* ---- Public Key (from NETOPIA) ---- *}
-<div class="control-group">
-    <label class="control-label">{__("netopia_public_key")}:</label>
-    <div class="controls">
-        <div class="netopia-key-section">
+{* ================================================================ *}
+{* ---- SANDBOX CERTIFICATES ---- *}
+{* ================================================================ *}
+<fieldset>
+    <legend style="border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 15px;">
+        {__("netopia_sandbox_keys_section")}
+    </legend>
 
-            {* Upload field *}
+    {* Sandbox Public Key *}
+    <div class="control-group">
+        <label class="control-label">{__("netopia_sandbox_public_key")}:</label>
+        <div class="controls">
             <div style="margin-bottom: 8px;">
-                <label for="netopia_public_key_file" class="btn" style="cursor:pointer;">
+                <label for="netopia_sandbox_public_key_file" class="btn" style="cursor:pointer;">
                     <i class="icon-upload"></i> {__("netopia_upload_key_file")}
                 </label>
-                <input type="file" name="netopia_public_key_file" id="netopia_public_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" style="margin-top: 4px;" />
+                <input type="file" name="netopia_sandbox_public_key_file" id="netopia_sandbox_public_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" style="margin-top: 4px;" />
             </div>
-
-            {* Show currently uploaded filename *}
-            {if $processor_params.public_key_file}
+            {if $processor_params.sandbox_public_key_file}
                 <div class="well well-small" style="margin-bottom: 8px;">
                     <i class="icon-file"></i>
-                    {__("netopia_current_file")}: <strong>{$processor_params.public_key_file}</strong>
+                    {__("netopia_current_file")}: <strong>{$processor_params.sandbox_public_key_file}</strong>
                     &nbsp;
                     <label style="display:inline; cursor:pointer;">
-                        <input type="checkbox" name="delete_netopia_public_key" value="1" />
+                        <input type="checkbox" name="delete_netopia_sandbox_public_key" value="1" />
                         {__("netopia_delete_key_file")}
                     </label>
                 </div>
             {/if}
-
-            {* Textarea fallback *}
             <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
-            <textarea name="payment_data[processor_params][public_key]" id="netopia_public_key" cols="65" rows="8" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----">{$processor_params.public_key}</textarea>
-            <p class="muted description">{__("netopia_public_key_description")}</p>
+            <textarea name="payment_data[processor_params][sandbox_public_key]" id="netopia_sandbox_public_key" cols="65" rows="6" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----">{$processor_params.sandbox_public_key}</textarea>
+            <p class="muted description">{__("netopia_sandbox_public_key_description")}</p>
         </div>
     </div>
-</div>
 
-{* ---- Private Key (from NETOPIA) ---- *}
-<div class="control-group">
-    <label class="control-label">{__("netopia_private_key")}:</label>
-    <div class="controls">
-        <div class="netopia-key-section">
-
-            {* Upload field *}
+    {* Sandbox Private Key *}
+    <div class="control-group">
+        <label class="control-label">{__("netopia_sandbox_private_key")}:</label>
+        <div class="controls">
             <div style="margin-bottom: 8px;">
-                <label for="netopia_private_key_file" class="btn" style="cursor:pointer;">
+                <label for="netopia_sandbox_private_key_file" class="btn" style="cursor:pointer;">
                     <i class="icon-upload"></i> {__("netopia_upload_key_file")}
                 </label>
-                <input type="file" name="netopia_private_key_file" id="netopia_private_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" style="margin-top: 4px;" />
+                <input type="file" name="netopia_sandbox_private_key_file" id="netopia_sandbox_private_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" style="margin-top: 4px;" />
             </div>
-
-            {* Show currently uploaded filename *}
-            {if $processor_params.private_key_file}
+            {if $processor_params.sandbox_private_key_file}
                 <div class="well well-small" style="margin-bottom: 8px;">
                     <i class="icon-file"></i>
-                    {__("netopia_current_file")}: <strong>{$processor_params.private_key_file}</strong>
+                    {__("netopia_current_file")}: <strong>{$processor_params.sandbox_private_key_file}</strong>
                     &nbsp;
                     <label style="display:inline; cursor:pointer;">
-                        <input type="checkbox" name="delete_netopia_private_key" value="1" />
+                        <input type="checkbox" name="delete_netopia_sandbox_private_key" value="1" />
                         {__("netopia_delete_key_file")}
                     </label>
                 </div>
             {/if}
-
-            {* Textarea fallback *}
             <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
-            <textarea name="payment_data[processor_params][private_key]" id="netopia_private_key" cols="65" rows="8" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----">{$processor_params.private_key}</textarea>
-            <p class="muted description">{__("netopia_private_key_description")}</p>
+            <textarea name="payment_data[processor_params][sandbox_private_key]" id="netopia_sandbox_private_key" cols="65" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----">{$processor_params.sandbox_private_key}</textarea>
+            <p class="muted description">{__("netopia_sandbox_private_key_description")}</p>
         </div>
     </div>
-</div>
+</fieldset>
+
+{* ================================================================ *}
+{* ---- LIVE CERTIFICATES ---- *}
+{* ================================================================ *}
+<fieldset>
+    <legend style="border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 15px;">
+        {__("netopia_live_keys_section")}
+    </legend>
+
+    {* Live Public Key *}
+    <div class="control-group">
+        <label class="control-label">{__("netopia_live_public_key")}:</label>
+        <div class="controls">
+            <div style="margin-bottom: 8px;">
+                <label for="netopia_live_public_key_file" class="btn" style="cursor:pointer;">
+                    <i class="icon-upload"></i> {__("netopia_upload_key_file")}
+                </label>
+                <input type="file" name="netopia_live_public_key_file" id="netopia_live_public_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" style="margin-top: 4px;" />
+            </div>
+            {if $processor_params.live_public_key_file}
+                <div class="well well-small" style="margin-bottom: 8px;">
+                    <i class="icon-file"></i>
+                    {__("netopia_current_file")}: <strong>{$processor_params.live_public_key_file}</strong>
+                    &nbsp;
+                    <label style="display:inline; cursor:pointer;">
+                        <input type="checkbox" name="delete_netopia_live_public_key" value="1" />
+                        {__("netopia_delete_key_file")}
+                    </label>
+                </div>
+            {/if}
+            <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
+            <textarea name="payment_data[processor_params][live_public_key]" id="netopia_live_public_key" cols="65" rows="6" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----">{$processor_params.live_public_key}</textarea>
+            <p class="muted description">{__("netopia_live_public_key_description")}</p>
+        </div>
+    </div>
+
+    {* Live Private Key *}
+    <div class="control-group">
+        <label class="control-label">{__("netopia_live_private_key")}:</label>
+        <div class="controls">
+            <div style="margin-bottom: 8px;">
+                <label for="netopia_live_private_key_file" class="btn" style="cursor:pointer;">
+                    <i class="icon-upload"></i> {__("netopia_upload_key_file")}
+                </label>
+                <input type="file" name="netopia_live_private_key_file" id="netopia_live_private_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" style="margin-top: 4px;" />
+            </div>
+            {if $processor_params.live_private_key_file}
+                <div class="well well-small" style="margin-bottom: 8px;">
+                    <i class="icon-file"></i>
+                    {__("netopia_current_file")}: <strong>{$processor_params.live_private_key_file}</strong>
+                    &nbsp;
+                    <label style="display:inline; cursor:pointer;">
+                        <input type="checkbox" name="delete_netopia_live_private_key" value="1" />
+                        {__("netopia_delete_key_file")}
+                    </label>
+                </div>
+            {/if}
+            <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
+            <textarea name="payment_data[processor_params][live_private_key]" id="netopia_live_private_key" cols="65" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----">{$processor_params.live_private_key}</textarea>
+            <p class="muted description">{__("netopia_live_private_key_description")}</p>
+        </div>
+    </div>
+</fieldset>

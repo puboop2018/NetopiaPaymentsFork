@@ -50,17 +50,35 @@ msgstr "Maximum Installments"
 msgid "netopia_max_installments_description"
 msgstr "Maximum number of installments available to the customer (2-36). Only applies when installments are enabled."
 
-msgid "netopia_public_key"
-msgstr "Public Key"
+msgid "netopia_sandbox_keys_section"
+msgstr "Sandbox Certificates (Test Environment)"
 
-msgid "netopia_public_key_description"
-msgstr "NETOPIA's public key in PEM format. Used to verify IPN (Instant Payment Notification) callbacks. Provided by NETOPIA in your merchant dashboard."
+msgid "netopia_sandbox_public_key"
+msgstr "Sandbox Public Key"
 
-msgid "netopia_private_key"
-msgstr "Private Key"
+msgid "netopia_sandbox_public_key_description"
+msgstr "NETOPIA sandbox public key (e.g. sandbox.XXXX-XXXX.public.cer). Used for IPN verification in test mode."
 
-msgid "netopia_private_key_description"
-msgstr "Your private key in PEM format. Provided by NETOPIA for payment signing. Upload from your NETOPIA merchant dashboard."
+msgid "netopia_sandbox_private_key"
+msgstr "Sandbox Private Key"
+
+msgid "netopia_sandbox_private_key_description"
+msgstr "NETOPIA sandbox private key (e.g. sandbox.XXXX-XXXX.private.key). Used for payment signing in test mode."
+
+msgid "netopia_live_keys_section"
+msgstr "Live Certificates (Production Environment)"
+
+msgid "netopia_live_public_key"
+msgstr "Live Public Key"
+
+msgid "netopia_live_public_key_description"
+msgstr "NETOPIA live public key (e.g. live.XXXX-XXXX.public.cer). Used for IPN verification in production."
+
+msgid "netopia_live_private_key"
+msgstr "Live Private Key"
+
+msgid "netopia_live_private_key_description"
+msgstr "NETOPIA live private key (e.g. live.XXXX-XXXX.private.key). Used for payment signing in production."
 
 msgid "netopia_upload_key_file"
 msgstr "Upload key file"
@@ -74,11 +92,8 @@ msgstr "Delete file"
 msgid "netopia_or_paste_key"
 msgstr "Or paste key content manually"
 
-msgid "netopia_key_uploaded_public_key"
-msgstr "NETOPIA public key file uploaded successfully."
-
-msgid "netopia_key_uploaded_private_key"
-msgstr "NETOPIA private key file uploaded successfully."
+msgid "netopia_key_uploaded"
+msgstr "NETOPIA key file ([key]) uploaded successfully."
 
 msgid "netopia_key_upload_failed"
 msgstr "Failed to upload key file. Please check file permissions."

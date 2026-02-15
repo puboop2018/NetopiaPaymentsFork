@@ -34,19 +34,40 @@ function fn_netopia_get_keys_dir(int $payment_id): string
  * @param int    $payment_id       CS-Cart payment method ID
  * @return string PEM key content, or empty string if not available
  */
-function fn_netopia_load_key(array $processor_params, string $key_type, int $payment_id): string
+function fn_netopia_load_key(array $processor_params, string $key_type, int $payment_id, string $mode = ''): string
 {
-    // Priority 1: uploaded file
-    $file_field = $key_type . '_file';
-    if (!empty($processor_params[$file_field])) {
-        $keys_dir = fn_netopia_get_keys_dir($payment_id);
-        $file_path = $keys_dir . $processor_params[$file_field];
+    // Determine the environment prefix (sandbox_ or live_)
+    if (empty($mode)) {
+        $mode = (!empty($processor_params['mode']) && $processor_params['mode'] === 'live') ? 'live' : 'sandbox';
+    }
+    $env_key = $mode . '_' . $key_type;          // e.g. "sandbox_public_key"
+    $env_file = $env_key . '_file';               // e.g. "sandbox_public_key_file"
+
+    $keys_dir = fn_netopia_get_keys_dir($payment_id);
+
+    // Priority 1: environment-specific uploaded file
+    if (!empty($processor_params[$env_file])) {
+        $file_path = $keys_dir . $processor_params[$env_file];
         if (file_exists($file_path) && is_readable($file_path)) {
             return trim(file_get_contents($file_path));
         }
     }
 
-    // Priority 2: textarea content
+    // Priority 2: environment-specific textarea content
+    if (!empty($processor_params[$env_key])) {
+        return trim($processor_params[$env_key]);
+    }
+
+    // Priority 3: legacy non-prefixed uploaded file (backward compat)
+    $legacy_file = $key_type . '_file';
+    if (!empty($processor_params[$legacy_file])) {
+        $file_path = $keys_dir . $processor_params[$legacy_file];
+        if (file_exists($file_path) && is_readable($file_path)) {
+            return trim(file_get_contents($file_path));
+        }
+    }
+
+    // Priority 4: legacy non-prefixed textarea
     return trim($processor_params[$key_type] ?? '');
 }
 
@@ -86,7 +107,15 @@ function fn_netopia_payments_update_payment_post(array $payment_data, int $payme
         }
     }
 
-    foreach (['public_key' => 'netopia_public_key_file', 'private_key' => 'netopia_private_key_file'] as $key_type => $file_input_name) {
+    // All 4 key slots: sandbox/live x public/private
+    $key_slots = [
+        'sandbox_public_key'  => 'netopia_sandbox_public_key_file',
+        'sandbox_private_key' => 'netopia_sandbox_private_key_file',
+        'live_public_key'     => 'netopia_live_public_key_file',
+        'live_private_key'    => 'netopia_live_private_key_file',
+    ];
+
+    foreach ($key_slots as $param_key => $file_input_name) {
         if (empty($_FILES[$file_input_name]['name']) || $_FILES[$file_input_name]['error'] !== UPLOAD_ERR_OK) {
             continue;
         }
@@ -107,7 +136,7 @@ function fn_netopia_payments_update_payment_post(array $payment_data, int $payme
             continue;
         }
 
-        // Read and validate content looks like a PEM key
+        // Read and validate content
         $content = file_get_contents($upload['tmp_name']);
         if ($content === false || empty(trim($content))) {
             fn_set_notification('W', __('warning'), __('netopia_key_empty'));
@@ -122,44 +151,43 @@ function fn_netopia_payments_update_payment_post(array $payment_data, int $payme
         // Secure the directory
         fn_netopia_secure_keys_dir($keys_dir);
 
-        // Preserve original NETOPIA filename (e.g. live.XXXX-XXXX.private.key)
-        // Sanitize: keep only alphanumeric, dots, hyphens, underscores
+        // Preserve original NETOPIA filename (e.g. sandbox.XXXX-XXXX.private.key)
         $original_name = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $upload['name']);
-        // Remove any old file for this key type
-        if (!empty($params[$key_type . '_file'])) {
-            $old_file = $keys_dir . $params[$key_type . '_file'];
+        $file_field = $param_key . '_file';
+
+        // Remove any old file for this key slot
+        if (!empty($params[$file_field])) {
+            $old_file = $keys_dir . $params[$file_field];
             if (file_exists($old_file)) {
                 unlink($old_file);
             }
         }
-        $safe_filename = $original_name;
-        $dest_path = $keys_dir . $safe_filename;
+
+        $dest_path = $keys_dir . $original_name;
 
         if (move_uploaded_file($upload['tmp_name'], $dest_path)) {
             chmod($dest_path, 0640);
-            $params[$key_type . '_file'] = $safe_filename;
-
-            // Also populate the textarea param with the file content for runtime use
-            $params[$key_type] = trim($content);
+            $params[$file_field] = $original_name;
+            $params[$param_key] = trim($content);
             $updated = true;
 
-            fn_set_notification('N', __('notice'), __('netopia_key_uploaded_' . $key_type));
+            fn_set_notification('N', __('notice'), __('netopia_key_uploaded', ['[key]' => $param_key]));
         } else {
             fn_set_notification('W', __('warning'), __('netopia_key_upload_failed'));
         }
     }
 
-    // Handle deletion requests
-    foreach (['public_key', 'private_key'] as $key_type) {
-        if (!empty($_POST['delete_netopia_' . $key_type])) {
-            $file_field = $key_type . '_file';
+    // Handle deletion requests for all 4 key slots
+    foreach (array_keys($key_slots) as $param_key) {
+        if (!empty($_POST['delete_netopia_' . $param_key])) {
+            $file_field = $param_key . '_file';
             if (!empty($params[$file_field])) {
                 $file_to_delete = $keys_dir . $params[$file_field];
                 if (file_exists($file_to_delete)) {
                     unlink($file_to_delete);
                 }
                 unset($params[$file_field]);
-                $params[$key_type] = '';
+                $params[$param_key] = '';
                 $updated = true;
             }
         }
