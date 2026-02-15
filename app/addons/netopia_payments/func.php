@@ -122,8 +122,17 @@ function fn_netopia_payments_update_payment_post(array $payment_data, int $payme
         // Secure the directory
         fn_netopia_secure_keys_dir($keys_dir);
 
-        // Save the file with a clean name
-        $safe_filename = $key_type . '.' . $ext;
+        // Preserve original NETOPIA filename (e.g. live.XXXX-XXXX.private.key)
+        // Sanitize: keep only alphanumeric, dots, hyphens, underscores
+        $original_name = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $upload['name']);
+        // Remove any old file for this key type
+        if (!empty($params[$key_type . '_file'])) {
+            $old_file = $keys_dir . $params[$key_type . '_file'];
+            if (file_exists($old_file)) {
+                unlink($old_file);
+            }
+        }
+        $safe_filename = $original_name;
         $dest_path = $keys_dir . $safe_filename;
 
         if (move_uploaded_file($upload['tmp_name'], $dest_path)) {
