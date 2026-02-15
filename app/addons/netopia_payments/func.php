@@ -101,7 +101,7 @@ function fn_netopia_payments_update_payment_post(array $payment_data, int $payme
     // Get current processor params
     $payment_row = db_get_row('SELECT processor_params FROM ?:payments WHERE payment_id = ?i', $payment_id);
     if (!empty($payment_row['processor_params'])) {
-        $params = unserialize($payment_row['processor_params']);
+        $params = unserialize($payment_row['processor_params'], ['allowed_classes' => false]);
         if (!is_array($params)) {
             $params = [];
         }
@@ -285,6 +285,8 @@ function fn_netopia_api_request(string $endpoint, string $json_body, string $api
         CURLOPT_POSTFIELDS     => $json_body,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 30,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_HTTPHEADER     => [
             'Authorization: ' . $api_key,
             'Content-Type: application/json',
@@ -333,15 +335,16 @@ function fn_netopia_build_start_request(array $processor_params, array $order_in
     $currency = 'RON';
     if (!empty($processor_params['currency'])) {
         if ($processor_params['currency'] === 'order_currency') {
-            $currency = $order_info['secondary_currency'] ?? $order_info['secondary_currency'];
+            $currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
         } else {
             $currency = $processor_params['currency'];
         }
     }
 
     // Convert amount to the selected currency
+    $order_currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
     $amount = (float) $order_info['total'];
-    if ($currency !== $order_info['secondary_currency']) {
+    if ($currency !== $order_currency) {
         $amount = fn_format_price_by_currency($order_info['total'], CART_PRIMARY_CURRENCY, $currency);
     }
 
@@ -477,9 +480,10 @@ function fn_netopia_get_3ds_data(): array
  *
  * @param string $public_key_pem   NETOPIA's public key in PEM format
  * @param string $pos_signature    Merchant POS signature
+ * @param string $raw_post_body    Raw POST body (read once, passed in to avoid double-read of php://input)
  * @return array{verified: bool, payload: array|null, error: string}
  */
-function fn_netopia_verify_ipn(string $public_key_pem, string $pos_signature): array
+function fn_netopia_verify_ipn(string $public_key_pem, string $pos_signature, string $raw_post_body): array
 {
     // Get the Verification-Token from HTTP headers
     $verification_token = null;
@@ -557,14 +561,13 @@ function fn_netopia_verify_ipn(string $public_key_pem, string $pos_signature): a
     }
 
     // Verify payload integrity (subject = hash of raw POST body)
-    $raw_post = file_get_contents('php://input');
-    $payload_hash = base64_encode(hash('sha512', $raw_post, true));
+    $payload_hash = base64_encode(hash('sha512', $raw_post_body, true));
     if (($jwt_claims['sub'] ?? '') !== $payload_hash) {
         return ['verified' => false, 'payload' => null, 'error' => 'Payload integrity check failed'];
     }
 
     // Decode IPN payload from raw POST body
-    $ipn_data = json_decode($raw_post, true);
+    $ipn_data = json_decode($raw_post_body, true);
     if (!$ipn_data) {
         return ['verified' => false, 'payload' => null, 'error' => 'Invalid IPN payload JSON'];
     }

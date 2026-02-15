@@ -3,6 +3,23 @@
  * Displayed in the admin panel when editing a payment method that uses this processor.
  *}
 
+{* Ensure parent form supports file uploads *}
+{literal}
+<script>
+(function() {
+    var form = document.querySelector('form[name="payments_form"], form.cm-ajax-content-input');
+    if (!form) {
+        form = document.getElementById('netopia_mode');
+        if (form) form = form.closest('form');
+    }
+    if (form) {
+        form.setAttribute('enctype', 'multipart/form-data');
+        form.encoding = 'multipart/form-data';
+    }
+})();
+</script>
+{/literal}
+
 {* ---- Mode (Sandbox / Live) ---- *}
 <div class="control-group">
     <label class="control-label" for="netopia_mode">{__("netopia_mode")}:</label>

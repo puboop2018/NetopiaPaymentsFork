@@ -22,8 +22,6 @@ require_once Registry::get('config.dir.addons') . 'netopia_payments/func.php';
 // ---------------------------------------------------------------------------
 if (defined('PAYMENT_NOTIFICATION')) {
 
-    $payment_id = (int) ($_REQUEST['payment'] ?? 0);
-
     if ($mode === 'notify') {
         // ---------------------------------------------------------------
         // IPN Callback from NETOPIA
@@ -82,9 +80,13 @@ $json_request = fn_netopia_build_start_request($params, $order_info, $three_ds_d
 // Send to NETOPIA Start API
 $response = fn_netopia_api_request('payment/card/start', $json_request, $params['api_key'], $is_live);
 
-// Log for debugging (only in development mode)
+// Log for debugging (only in development mode) — mask card data in logs
 if (defined('DEVELOPMENT') && DEVELOPMENT) {
-    fn_log_event('payment', 'netopia_start_response', json_encode($response));
+    $log_data = $response;
+    unset($log_data['data']['payment']['instrument']);
+    fn_log_event('general', 'runtime', [
+        'message' => 'NETOPIA start response: ' . json_encode($log_data),
+    ]);
 }
 
 if ($response['status'] !== 1 || empty($response['data'])) {
@@ -192,7 +194,7 @@ if ($error_code === '100' && $ntp_status === 15) {
  */
 function fn_netopia_handle_ipn(): void
 {
-    // Find the payment processor params
+    // Read raw POST body once — passed to verify to avoid double-reading php://input
     $raw_post = file_get_contents('php://input');
     $ipn_raw  = json_decode($raw_post, true);
 
@@ -215,7 +217,7 @@ function fn_netopia_handle_ipn(): void
         return;
     }
 
-    $processor_data = fn_get_processor_data($order_info['payment_id']);
+    $processor_data = fn_get_payment_method_data($order_info['payment_id']);
     if (empty($processor_data['processor_params'])) {
         fn_netopia_ipn_response(2, 4, 'Processor not configured');
         return;
@@ -230,8 +232,8 @@ function fn_netopia_handle_ipn(): void
         return;
     }
 
-    // Verify the IPN JWT signature
-    $result = fn_netopia_verify_ipn($public_key, $params['pos_signature']);
+    // Verify the IPN JWT signature (pass raw body to avoid double-read)
+    $result = fn_netopia_verify_ipn($public_key, $params['pos_signature'], $raw_post);
 
     if (!$result['verified']) {
         fn_netopia_ipn_response(2, 6, 'IPN verification failed: ' . $result['error']);
@@ -243,15 +245,20 @@ function fn_netopia_handle_ipn(): void
     $ntp_id     = (string) ($ipn_data['payment']['ntpID'] ?? '');
     $amount     = (float) ($ipn_data['payment']['amount'] ?? 0);
 
-    // Map NETOPIA status to CS-Cart order status
+    // Idempotency: skip if order is already in a final state matching this IPN
     $cs_status = fn_netopia_map_order_status($ntp_status);
+    $current_status = $order_info['status'] ?? '';
+    if ($current_status === $cs_status && in_array($current_status, ['P', 'F', 'I'], true)) {
+        fn_netopia_ipn_response(1, 0, 'OK (already processed)');
+        return;
+    }
 
     // Update order payment info
     $payment_info = [
-        'transaction_id'    => $ntp_id,
-        'netopia_ntp_id'    => $ntp_id,
-        'netopia_status'    => $ntp_status,
-        'netopia_amount'    => $amount,
+        'transaction_id'        => $ntp_id,
+        'netopia_ntp_id'        => $ntp_id,
+        'netopia_status'        => $ntp_status,
+        'netopia_amount'        => $amount,
         'netopia_error_code'    => (string) ($ipn_data['payment']['data']['errorCode'] ?? ($ipn_data['error']['code'] ?? '')),
         'netopia_error_message' => (string) ($ipn_data['payment']['data']['errorMessage'] ?? ($ipn_data['error']['message'] ?? '')),
     ];
@@ -292,7 +299,7 @@ function fn_netopia_handle_3ds_return(): void
         return;
     }
 
-    $processor_data = fn_get_processor_data($order_info['payment_id']);
+    $processor_data = fn_get_payment_method_data($order_info['payment_id']);
     $params = $processor_data['processor_params'] ?? [];
 
     $pa_res = $_POST['paRes'] ?? $_REQUEST['paRes'] ?? '';
