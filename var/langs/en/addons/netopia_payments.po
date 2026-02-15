@@ -1,0 +1,93 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: cs-cart-netopia-payments 1.0.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "netopia_payments"
+msgstr "NETOPIA Payments"
+
+msgid "netopia_payments_description"
+msgstr "Integrate NETOPIA Payments gateway for online card payments with 3D Secure support and installments."
+
+msgid "netopia_mode"
+msgstr "Mode"
+
+msgid "netopia_sandbox"
+msgstr "Sandbox (Test)"
+
+msgid "netopia_live"
+msgstr "Live (Production)"
+
+msgid "netopia_pos_signature"
+msgstr "POS Signature"
+
+msgid "netopia_pos_signature_description"
+msgstr "Your NETOPIA POS Signature ID (format: XXXX-XXXX-XXXX-XXXX-XXXX). Found in your NETOPIA merchant dashboard."
+
+msgid "netopia_api_key"
+msgstr "API Key"
+
+msgid "netopia_api_key_description"
+msgstr "Your NETOPIA API Key generated from the NETOPIA merchant dashboard."
+
+msgid "netopia_currency"
+msgstr "Payment Currency"
+
+msgid "netopia_order_currency"
+msgstr "-- Use Order Currency --"
+
+msgid "netopia_currency_description"
+msgstr "Select which currency to send to NETOPIA. Choose 'Use Order Currency' to use the currency from each order, or select a specific currency."
+
+msgid "netopia_allow_installments"
+msgstr "Allow Installments"
+
+msgid "netopia_max_installments"
+msgstr "Maximum Installments"
+
+msgid "netopia_max_installments_description"
+msgstr "Maximum number of installments available to the customer (2-36). Only applies when installments are enabled."
+
+msgid "netopia_public_key"
+msgstr "Public Key"
+
+msgid "netopia_public_key_description"
+msgstr "NETOPIA's public key in PEM format. Used to verify IPN (Instant Payment Notification) callbacks. Provided by NETOPIA in your merchant dashboard."
+
+msgid "netopia_private_key"
+msgstr "Private Key"
+
+msgid "netopia_private_key_description"
+msgstr "Your private key in PEM format. Provided by NETOPIA for payment signing. Upload from your NETOPIA merchant dashboard."
+
+msgid "netopia_configuration_error"
+msgstr "NETOPIA Payments is not properly configured. Please contact the store administrator."
+
+msgid "netopia_3ds_session_expired"
+msgstr "Your 3D Secure authentication session has expired. Please try again."
+
+msgid "netopia_order_not_found"
+msgstr "Order not found. Please contact the store administrator."
+
+msgid "netopia_installments_label"
+msgstr "Pay in installments"
+
+msgid "netopia_full_payment"
+msgstr "Full payment (no installments)"
+
+msgid "netopia_installments_suffix"
+msgstr "installments"
+
+msgid "netopia_payment_pending"
+msgstr "Payment is being processed by NETOPIA."
+
+msgid "netopia_payment_approved"
+msgstr "Payment approved by NETOPIA."
+
+msgid "netopia_payment_declined"
+msgstr "Payment was declined by NETOPIA."
+
+msgid "netopia_payment_error"
+msgstr "An error occurred during NETOPIA payment processing."
