@@ -11,10 +11,12 @@
 use Tygh\Registry;
 use Tygh\Tygh;
 
-if (!defined('BOOTSTRAP')) { die('Access denied'); }
+if (!defined('BOOTSTRAP')) {
+    die('Access denied');
+}
 
 if ($mode === 'details') {
-    $order_id = (int) ($_REQUEST['order_id'] ?? 0);
+    $order_id = (int) ($_GET['order_id'] ?? $_REQUEST['order_id'] ?? 0);
     if (empty($order_id)) {
         return;
     }

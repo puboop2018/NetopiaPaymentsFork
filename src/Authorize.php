@@ -1,26 +1,35 @@
-<?php 
+<?php
+
+declare(strict_types=1);
+
 namespace Netopia\Payment2;
 
-class Authorize extends Start{
-    public $backUrl;
-    public $paReq;
-    
+use Netopia\Payment2\Exception\InvalidParameterException;
 
-    public function validateParam() {
-        if(!isset($this->apiKey) || empty($this->apiKey)){
-            throw new \Exception('apiKey is not defined');
-        }
+class Authorize extends Start
+{
+    public string $backUrl = '';
+    public string $paReq = '';
+    public string $bankUrl = '';
 
-        if(!isset($this->paReq) || empty($this->paReq)){
-            throw new \Exception('paReq Url is not defined');
-        }
+    /**
+     * Validate that all required 3D Secure authorization parameters are set.
+     *
+     * @throws InvalidParameterException If any required parameter is missing
+     */
+    public function validateParam(): void
+    {
+        $required = [
+            'apiKey'  => $this->apiKey,
+            'paReq'   => $this->paReq,
+            'backUrl' => $this->backUrl,
+            'bankUrl' => $this->bankUrl,
+        ];
 
-        if(!isset($this->backUrl) || empty($this->backUrl)){
-            throw new \Exception('back Url is not defined');
-        }
-
-        if(!isset($this->bankUrl) || empty($this->bankUrl)){
-            throw new \Exception('Bank Url is not defined for authorizing');
+        foreach ($required as $name => $value) {
+            if (empty($value)) {
+                throw new InvalidParameterException($name . ' is required for authorization.');
+            }
         }
     }
 }

@@ -1,41 +1,63 @@
-<?php 
+<?php
+
+declare(strict_types=1);
+
 namespace Netopia\Payment2;
 
-class Status extends Start{
-    public $ntpID;
-    public $orderID;
+use Netopia\Payment2\Exception\InvalidApiKeyException;
+use Netopia\Payment2\Exception\InvalidParameterException;
 
-    public function validateParam() {
-        if(!isset($this->apiKey) || empty($this->apiKey)){
-            throw new \Exception('apiKey is not defined');
-        }
-        if(!isset($this->posSignature) || empty($this->posSignature)){
-            throw new \Exception('posSignature is not defined');
-        }
-        if(!isset($this->ntpID) || empty($this->ntpID)){
-            throw new \Exception('ntpID is not defined');
-        }
-        if(!isset($this->orderID) || empty($this->orderID)){
-            throw new \Exception('orderID is not defined');
-        }
-    }
+class Status extends Start
+{
+    public string $ntpID = '';
+    public string $orderID = '';
 
-    public function setStatus() {
-        $paymentStatusParam = [
-            "posID" => (string) $this->posSignature,
-            "ntpID" => (string) $this->ntpID,
-            "orderID" => (string) $this->orderID
+    /**
+     * Validate that all required status query parameters are set.
+     *
+     * @throws InvalidParameterException If any required parameter is missing
+     */
+    public function validateParam(): void
+    {
+        $required = [
+            'apiKey'       => $this->apiKey,
+            'posSignature' => $this->posSignature,
+            'ntpID'        => $this->ntpID,
+            'orderID'      => $this->orderID,
         ];
 
-        return (json_encode($paymentStatusParam));
+        foreach ($required as $name => $value) {
+            if (empty($value)) {
+                throw new InvalidParameterException($name . ' is required for status query.');
+            }
+        }
     }
 
-    // Send request to get payment status
-    public function getStatus($jsonStr) {
-        if(!isset($this->apiKey) || is_null($this->apiKey)) {
-            throw new \Exception('INVALID_APIKEY');
+    /**
+     * Build the status query request payload.
+     */
+    public function setStatus(): string
+    {
+        $payload = [
+            'posID'   => $this->posSignature,
+            'ntpID'   => $this->ntpID,
+            'orderID' => $this->orderID,
+        ];
+
+        return (string) json_encode($payload);
+    }
+
+    /**
+     * Send the status query request to NETOPIA.
+     *
+     * @throws InvalidApiKeyException If API key is not set
+     */
+    public function getStatus(string $jsonStr): string
+    {
+        if (empty($this->apiKey)) {
+            throw new InvalidApiKeyException('API key is required for status queries.');
         }
 
-        return BaseHttpClient::sendHttpRequest('/operation/status', $jsonStr, 'POST');
+        return $this->sendHttpRequest('operation/status', $jsonStr, 'POST');
     }
 }

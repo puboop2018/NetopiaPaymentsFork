@@ -1,151 +1,186 @@
-<?php 
+<?php
+
+declare(strict_types=1);
+
 namespace Netopia\Payment2;
 
-class Request extends Start {
-    public $authenticationToken;
-    public $ntpID;
-    public $jsonRequest;
+class Request extends Start
+{
+    public string $authenticationToken = '';
+    public string $ntpID = '';
+    public string $jsonRequest = '';
 
-
-    public function setConfig($configData) {
-        $config = array(
-            'emailTemplate' => (string) isset($configData['emailTemplate']) ? $configData['emailTemplate'] : 'confirm',
-            'notifyUrl'     => (string) $configData['notifyUrl'],
-            'redirectUrl'   => (string) $configData['redirectUrl'],
-            'language'      => (string) isset($configData['language']) ? $configData['language'] : 'RO'
-        );
-        return $config;
-    }
-
-    public function setPayment($cardData, $threeDSecusreData) {
-        $threeDSecusreData = json_decode($threeDSecusreData);
-        $threeDSecusreData->IP_ADDRESS = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : "127.0.0.1";
-
-        $payment = array(
-            'options' => [
-                'installments' => (int) 1,
-                'bonus'        => (int) 0
-            ],
-            'instrument' => [
-                'type'          => (string) "card",
-                'account'       => (string) $cardData['account'],
-                'expMonth'      => (int) $cardData['expMonth'],
-                'expYear'       => (int) $cardData['expYear'],
-                'secretCode'    => (string) $cardData['secretCode'],
-                'token'         => null
-            ],
-            'data' =>  $threeDSecusreData
-        );
-        return $payment;
+    /**
+     * Build config section of the payment request.
+     *
+     * @param array<string, mixed> $configData
+     * @return array<string, string>
+     */
+    public function setConfig(array $configData): array
+    {
+        return [
+            'emailTemplate' => (string) ($configData['emailTemplate'] ?? 'confirm'),
+            'notifyUrl'     => (string) ($configData['notifyUrl'] ?? ''),
+            'redirectUrl'   => (string) ($configData['redirectUrl'] ?? ''),
+            'language'      => (string) ($configData['language'] ?? 'RO'),
+        ];
     }
 
     /**
-     * Build payment data with empty instrument fields.
-     * This triggers the hosted payment page flow (error code 101),
-     * returning a paymentURL that can be sent to the customer.
+     * Build payment section with card instrument data.
+     *
+     * @param array<string, mixed> $cardData
+     * @param string               $threeDSecureData JSON-encoded 3DS browser data
+     * @return array<string, mixed>
      */
-    public function setPaymentForLink($threeDSecusreData) {
-        if (is_string($threeDSecusreData)) {
-            $threeDSecusreData = json_decode($threeDSecusreData);
+    public function setPayment(array $cardData, string $threeDSecureData): array
+    {
+        $decoded = json_decode($threeDSecureData);
+        if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
+            $decoded = new \stdClass();
         }
-        if (is_object($threeDSecusreData)) {
-            $threeDSecusreData->IP_ADDRESS = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : "127.0.0.1";
-        }
+        $decoded->IP_ADDRESS = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
 
-        $payment = array(
+        return [
             'options' => [
-                'installments' => (int) 1,
-                'bonus'        => (int) 0
+                'installments' => 1,
+                'bonus'        => 0,
             ],
             'instrument' => [
-                'type'       => (string) "card",
-                'account'    => (string) "",
-                'expMonth'   => (int) 0,
-                'expYear'    => (int) 0,
-                'secretCode' => (string) "",
-                'token'      => null
+                'type'       => 'card',
+                'account'    => (string) ($cardData['account'] ?? ''),
+                'expMonth'   => (int) ($cardData['expMonth'] ?? 0),
+                'expYear'    => (int) ($cardData['expYear'] ?? 0),
+                'secretCode' => (string) ($cardData['secretCode'] ?? ''),
+                'token'      => null,
             ],
-            'data' => $threeDSecusreData
-        );
-        return $payment;
+            'data' => $decoded,
+        ];
+    }
+
+    /**
+     * Build payment section with empty instrument fields for hosted payment page flow.
+     * This triggers error code 101, returning a paymentURL for the customer.
+     *
+     * @param mixed $threeDSecureData JSON string or object of 3DS browser data
+     * @return array<string, mixed>
+     */
+    public function setPaymentForLink($threeDSecureData = null): array
+    {
+        if (is_string($threeDSecureData)) {
+            $threeDSecureData = json_decode($threeDSecureData);
+        }
+        if (is_object($threeDSecureData)) {
+            $threeDSecureData->IP_ADDRESS = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        }
+
+        return [
+            'options' => [
+                'installments' => 1,
+                'bonus'        => 0,
+            ],
+            'instrument' => [
+                'type'       => 'card',
+                'account'    => '',
+                'expMonth'   => 0,
+                'expYear'    => 0,
+                'secretCode' => '',
+                'token'      => null,
+            ],
+            'data' => $threeDSecureData,
+        ];
     }
 
     /**
      * Build a payment link request (hosted payment page).
-     * Same as setRequest but with empty instrument fields.
+     *
+     * @param array<string, mixed> $configData
+     * @param object               $orderData
+     * @param mixed                $threeDSecureData
      */
-    public function setPaymentLinkRequest($configData, $orderData, $threeDSecusreData = null) {
-        $startArr = array(
+    public function setPaymentLinkRequest(array $configData, object $orderData, $threeDSecureData = null): string
+    {
+        $startArr = [
             'config'  => $this->setConfig($configData),
-            'payment' => $this->setPaymentForLink($threeDSecusreData),
-            'order'   => $this->setOrder($orderData)
-        );
+            'payment' => $this->setPaymentForLink($threeDSecureData),
+            'order'   => $this->setOrder($orderData),
+        ];
 
-        return json_encode($startArr);
+        return (string) json_encode($startArr);
     }
 
     /**
-     * Set the order
+     * Build the order section of the payment request.
+     *
+     * @param object $orderData Order data object with billing/shipping properties
+     * @return array<string, mixed>
      */
-    public function setOrder($orderData) {
-        $order = array(
-            'ntpID'         => (string) null, 
-            'posSignature'  => (string) $this->posSignature,
-            'dateTime'      => (string) date("c", strtotime(date("Y-m-d H:i:s"))),
-            'description'   => (string) $orderData->description,
-            'orderID'       => (string) $orderData->orderID,
-            'amount'        => (float)  $orderData->amount,
-            'currency'      => (string) $orderData->currency,
-            'billing'       => [
-                'email'         => (string) $orderData->billing->email,
-                'phone'         => (string) $orderData->billing->phone,
-                'firstName'     => (string) $orderData->billing->firstName,
-                'lastName'      => (string) $orderData->billing->lastName,
-                'city'          => (string) $orderData->billing->city,
-                'country'       => (int)    $orderData->billing->country,
-                'state'         => (string) $orderData->billing->state,
-                'postalCode'    => (string) $orderData->billing->postalCode,
-                'details'       => (string) $orderData->billing->details
+    public function setOrder(object $orderData): array
+    {
+        return [
+            'ntpID'        => '',
+            'posSignature' => (string) $this->posSignature,
+            'dateTime'     => date('c'),
+            'description'  => (string) ($orderData->description ?? ''),
+            'orderID'      => (string) ($orderData->orderID ?? ''),
+            'amount'       => (float) ($orderData->amount ?? 0),
+            'currency'     => (string) ($orderData->currency ?? ''),
+            'billing'      => [
+                'email'      => (string) ($orderData->billing->email ?? ''),
+                'phone'      => (string) ($orderData->billing->phone ?? ''),
+                'firstName'  => (string) ($orderData->billing->firstName ?? ''),
+                'lastName'   => (string) ($orderData->billing->lastName ?? ''),
+                'city'       => (string) ($orderData->billing->city ?? ''),
+                'country'    => (int) ($orderData->billing->country ?? 0),
+                'state'      => (string) ($orderData->billing->state ?? ''),
+                'postalCode' => (string) ($orderData->billing->postalCode ?? ''),
+                'details'    => (string) ($orderData->billing->details ?? ''),
             ],
-            'shipping'      => [
-                'email'         => (string) $orderData->shipping->email,
-                'phone'         => (string) $orderData->shipping->phone,
-                'firstName'     => (string) $orderData->shipping->firstName,
-                'lastName'      => (String) $orderData->shipping->lastName,
-                'city'          => (string) $orderData->shipping->city,
-                'country'       => (int)    $orderData->shipping->country,
-                'state'         => (string) $orderData->shipping->state,
-                'postalCode'    => (string) $orderData->shipping->postalCode,
-                'details'       => (string) $orderData->shipping->details
+            'shipping' => [
+                'email'      => (string) ($orderData->shipping->email ?? ''),
+                'phone'      => (string) ($orderData->shipping->phone ?? ''),
+                'firstName'  => (string) ($orderData->shipping->firstName ?? ''),
+                'lastName'   => (string) ($orderData->shipping->lastName ?? ''),
+                'city'       => (string) ($orderData->shipping->city ?? ''),
+                'country'    => (int) ($orderData->shipping->country ?? 0),
+                'state'      => (string) ($orderData->shipping->state ?? ''),
+                'postalCode' => (string) ($orderData->shipping->postalCode ?? ''),
+                'details'    => (string) ($orderData->shipping->details ?? ''),
             ],
-            'products' => $orderData->products,
-            'installments'  => array(
-                                    'selected'  => (int) 1,
-                                    'available' => [(int) 0]
-                            ),
-            'data'       => null
-        );
-        return $order;
+            'products'     => $orderData->products ?? [],
+            'installments' => [
+                'selected'  => 1,
+                'available' => [0],
+            ],
+            'data' => null,
+        ];
     }
-
 
     /**
-     * Set the request to payment
-     * @output json
+     * Build the full payment start request.
+     *
+     * @param array<string, mixed> $configData
+     * @param array<string, mixed> $cardData
+     * @param object               $orderData
+     * @param string|null          $threeDSecureData JSON-encoded 3DS data
+     * @return string JSON-encoded request body
      */
-    public function setRequest($configData, $cardData, $orderData, $threeDSecusreData = null) {
-        $startArr = array(
-          'config'  => $this->setConfig($configData),
-          'payment' => $this->setPayment($cardData, $threeDSecusreData),
-          'order'   => $this->setOrder($orderData)
-      );
-      
-      // make json Data 
-      return json_encode($startArr);
+    public function setRequest(array $configData, array $cardData, object $orderData, ?string $threeDSecureData = null): string
+    {
+        $startArr = [
+            'config'  => $this->setConfig($configData),
+            'payment' => $this->setPayment($cardData, $threeDSecureData ?? '{}'),
+            'order'   => $this->setOrder($orderData),
+        ];
+
+        return (string) json_encode($startArr);
     }
 
-    public function startPayment(){
-      $result = $this->sendRequest($this->jsonRequest);
-      return($result);
-    }    
+    /**
+     * Execute the payment start request.
+     */
+    public function startPayment(): string
+    {
+        return $this->sendRequest($this->jsonRequest);
+    }
 }

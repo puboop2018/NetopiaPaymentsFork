@@ -12,6 +12,47 @@ if (!defined('BOOTSTRAP')) { die('Access denied'); }
 
 use Tygh\Registry;
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Maximum allowed key file size in bytes (64 KB). */
+const NETOPIA_MAX_KEY_FILE_SIZE = 65536;
+
+/** File permissions for uploaded key files (owner read+write, group read). */
+const NETOPIA_KEY_FILE_PERMISSIONS = 0640;
+
+/** cURL request timeout in seconds. */
+const NETOPIA_API_TIMEOUT = 30;
+
+/** NETOPIA error code: 3D Secure authentication required. */
+const NETOPIA_ERROR_CODE_3DS = '100';
+
+/** NETOPIA error code: redirect to hosted payment page. */
+const NETOPIA_ERROR_CODE_HOSTED_PAGE = '101';
+
+/** NETOPIA status: 3D Secure authentication required. */
+const NETOPIA_STATUS_3DS_REQUIRED = 15;
+
+/** NETOPIA status: payment captured. */
+const NETOPIA_STATUS_PAID = 3;
+
+/** NETOPIA status: payment confirmed (after IPN). */
+const NETOPIA_STATUS_CONFIRMED = 5;
+
+/** Default country code (Romania, ISO 3166-1 numeric). */
+const NETOPIA_DEFAULT_COUNTRY_CODE = 642;
+
+/** Maximum JWT token size in bytes (10 KB) — prevents DoS. */
+const NETOPIA_MAX_JWT_TOKEN_SIZE = 10240;
+
+/** Maximum allowed length for 3DS browser fingerprint string values. */
+const NETOPIA_MAX_3DS_FIELD_LENGTH = 512;
+
+// ---------------------------------------------------------------------------
+// Key management
+// ---------------------------------------------------------------------------
+
 /**
  * Returns the directory path where NETOPIA key files are stored for a given payment method.
  *
@@ -32,25 +73,23 @@ function fn_netopia_get_keys_dir(int $payment_id): string
  * @param array  $processor_params Payment processor params
  * @param string $key_type         'public_key' or 'private_key'
  * @param int    $payment_id       CS-Cart payment method ID
+ * @param string $mode             'live' or 'sandbox' (auto-detected if empty)
  * @return string PEM key content, or empty string if not available
  */
 function fn_netopia_load_key(array $processor_params, string $key_type, int $payment_id, string $mode = ''): string
 {
-    // Determine the environment prefix (sandbox_ or live_)
     if (empty($mode)) {
         $mode = (!empty($processor_params['mode']) && $processor_params['mode'] === 'live') ? 'live' : 'sandbox';
     }
-    $env_key = $mode . '_' . $key_type;          // e.g. "sandbox_public_key"
-    $env_file = $env_key . '_file';               // e.g. "sandbox_public_key_file"
+    $env_key  = $mode . '_' . $key_type;
+    $env_file = $env_key . '_file';
 
     $keys_dir = fn_netopia_get_keys_dir($payment_id);
 
     // Priority 1: environment-specific uploaded file
-    if (!empty($processor_params[$env_file])) {
-        $file_path = $keys_dir . $processor_params[$env_file];
-        if (file_exists($file_path) && is_readable($file_path)) {
-            return trim(file_get_contents($file_path));
-        }
+    $content = fn_netopia_read_key_file($keys_dir, $processor_params[$env_file] ?? '');
+    if ($content !== '') {
+        return $content;
     }
 
     // Priority 2: environment-specific textarea content
@@ -60,16 +99,45 @@ function fn_netopia_load_key(array $processor_params, string $key_type, int $pay
 
     // Priority 3: legacy non-prefixed uploaded file (backward compat)
     $legacy_file = $key_type . '_file';
-    if (!empty($processor_params[$legacy_file])) {
-        $file_path = $keys_dir . $processor_params[$legacy_file];
-        if (file_exists($file_path) && is_readable($file_path)) {
-            return trim(file_get_contents($file_path));
-        }
+    $content = fn_netopia_read_key_file($keys_dir, $processor_params[$legacy_file] ?? '');
+    if ($content !== '') {
+        return $content;
     }
 
     // Priority 4: legacy non-prefixed textarea
     return trim($processor_params[$key_type] ?? '');
 }
+
+/**
+ * Read a key file from the keys directory with path traversal protection.
+ *
+ * @param string $keys_dir Directory containing key files
+ * @param string $filename Filename to read (basename-protected)
+ * @return string File content, or empty string if not available
+ */
+function fn_netopia_read_key_file(string $keys_dir, string $filename): string
+{
+    if (empty($filename)) {
+        return '';
+    }
+
+    // Prevent path traversal by using only the basename
+    $safe_name = basename($filename);
+    $file_path = $keys_dir . $safe_name;
+
+    if (file_exists($file_path) && is_readable($file_path)) {
+        $content = file_get_contents($file_path);
+        if ($content !== false) {
+            return trim($content);
+        }
+    }
+
+    return '';
+}
+
+// ---------------------------------------------------------------------------
+// Key upload hook
+// ---------------------------------------------------------------------------
 
 /**
  * Hook: handle file uploads when a NETOPIA payment method is saved.
@@ -78,13 +146,12 @@ function fn_netopia_load_key(array $processor_params, string $key_type, int $pay
  * stores them securely in the addon's keys directory, and updates
  * the processor_params with the stored file names.
  *
- * @param array $payment_data  Payment method data being saved
- * @param int   $payment_id    Payment method ID
+ * @param array  $payment_data Payment method data being saved
+ * @param int    $payment_id   Payment method ID
  * @param string $lang_code    Language code
  */
 function fn_netopia_payments_update_payment_post(array $payment_data, int $payment_id, string $lang_code = ''): void
 {
-    // Only process if this is a NETOPIA payment processor
     if (empty($payment_data['processor_id'])) {
         return;
     }
@@ -96,18 +163,8 @@ function fn_netopia_payments_update_payment_post(array $payment_data, int $payme
 
     $keys_dir = fn_netopia_get_keys_dir($payment_id);
     $updated = false;
-    $params = [];
+    $params = fn_netopia_load_processor_params($payment_id);
 
-    // Get current processor params
-    $payment_row = db_get_row('SELECT processor_params FROM ?:payments WHERE payment_id = ?i', $payment_id);
-    if (!empty($payment_row['processor_params'])) {
-        $params = unserialize($payment_row['processor_params'], ['allowed_classes' => false]);
-        if (!is_array($params)) {
-            $params = [];
-        }
-    }
-
-    // All 4 key slots: sandbox/live x public/private
     $key_slots = [
         'sandbox_public_key'  => 'netopia_sandbox_public_key_file',
         'sandbox_private_key' => 'netopia_sandbox_private_key_file',
@@ -115,76 +172,23 @@ function fn_netopia_payments_update_payment_post(array $payment_data, int $payme
         'live_private_key'    => 'netopia_live_private_key_file',
     ];
 
+    // Handle file uploads
     foreach ($key_slots as $param_key => $file_input_name) {
-        if (empty($_FILES[$file_input_name]['name']) || $_FILES[$file_input_name]['error'] !== UPLOAD_ERR_OK) {
-            continue;
-        }
-
-        $upload = $_FILES[$file_input_name];
-
-        // Validate file extension
-        $ext = strtolower(pathinfo($upload['name'], PATHINFO_EXTENSION));
-        $allowed_extensions = ['pem', 'key', 'cer', 'crt', 'pub', 'txt'];
-        if (!in_array($ext, $allowed_extensions, true)) {
-            fn_set_notification('W', __('warning'), __('netopia_key_invalid_extension', ['[ext]' => $ext]));
-            continue;
-        }
-
-        // Validate file size (max 64KB - keys should be small)
-        if ($upload['size'] > 65536) {
-            fn_set_notification('W', __('warning'), __('netopia_key_too_large'));
-            continue;
-        }
-
-        // Read and validate content
-        $content = file_get_contents($upload['tmp_name']);
-        if ($content === false || empty(trim($content))) {
-            fn_set_notification('W', __('warning'), __('netopia_key_empty'));
-            continue;
-        }
-
-        // Create directory if needed
-        if (!is_dir($keys_dir)) {
-            fn_mkdir($keys_dir);
-        }
-
-        // Secure the directory
-        fn_netopia_secure_keys_dir($keys_dir);
-
-        // Preserve original NETOPIA filename (e.g. sandbox.XXXX-XXXX.private.key)
-        $original_name = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $upload['name']);
-        $file_field = $param_key . '_file';
-
-        // Remove any old file for this key slot
-        if (!empty($params[$file_field])) {
-            $old_file = $keys_dir . $params[$file_field];
-            if (file_exists($old_file)) {
-                unlink($old_file);
-            }
-        }
-
-        $dest_path = $keys_dir . $original_name;
-
-        if (move_uploaded_file($upload['tmp_name'], $dest_path)) {
-            chmod($dest_path, 0640);
-            $params[$file_field] = $original_name;
-            $params[$param_key] = trim($content);
+        $result = fn_netopia_process_key_upload($file_input_name, $param_key, $keys_dir, $params);
+        if ($result !== null) {
+            $params = $result;
             $updated = true;
-
-            fn_set_notification('N', __('notice'), __('netopia_key_uploaded', ['[key]' => $param_key]));
-        } else {
-            fn_set_notification('W', __('warning'), __('netopia_key_upload_failed'));
         }
     }
 
-    // Handle deletion requests for all 4 key slots
+    // Handle deletion requests
     foreach (array_keys($key_slots) as $param_key) {
         if (!empty($_POST['delete_netopia_' . $param_key])) {
             $file_field = $param_key . '_file';
             if (!empty($params[$file_field])) {
-                $file_to_delete = $keys_dir . $params[$file_field];
-                if (file_exists($file_to_delete)) {
-                    unlink($file_to_delete);
+                $file_to_delete = $keys_dir . basename($params[$file_field]);
+                if (file_exists($file_to_delete) && !unlink($file_to_delete)) {
+                    fn_set_notification('W', __('warning'), __('netopia_key_delete_failed'));
                 }
                 unset($params[$file_field]);
                 $params[$param_key] = '';
@@ -199,15 +203,113 @@ function fn_netopia_payments_update_payment_post(array $payment_data, int $payme
 }
 
 /**
- * Write security files (.htaccess, index.html) to prevent direct web access to keys.
+ * Load processor params from the database for a given payment ID.
  *
- * @param string $dir Directory to secure
+ * @return array<string, mixed>
+ */
+function fn_netopia_load_processor_params(int $payment_id): array
+{
+    $payment_row = db_get_row('SELECT processor_params FROM ?:payments WHERE payment_id = ?i', $payment_id);
+    if (!empty($payment_row['processor_params'])) {
+        $params = unserialize($payment_row['processor_params'], ['allowed_classes' => false]);
+        if (is_array($params)) {
+            return $params;
+        }
+    }
+
+    return [];
+}
+
+/**
+ * Process a single key file upload: validate, store, and update params.
+ *
+ * @return array<string, mixed>|null Updated params array on success, null if no upload
+ */
+function fn_netopia_process_key_upload(string $file_input_name, string $param_key, string $keys_dir, array $params): ?array
+{
+    if (empty($_FILES[$file_input_name]['name']) || $_FILES[$file_input_name]['error'] !== UPLOAD_ERR_OK) {
+        return null;
+    }
+
+    $upload = $_FILES[$file_input_name];
+
+    // Validate file extension
+    $ext = strtolower(pathinfo($upload['name'], PATHINFO_EXTENSION));
+    $allowed_extensions = ['pem', 'key', 'cer', 'crt', 'pub', 'txt'];
+    if (!in_array($ext, $allowed_extensions, true)) {
+        fn_set_notification('W', __('warning'), __('netopia_key_invalid_extension', ['[ext]' => $ext]));
+        return null;
+    }
+
+    // Validate file size
+    if ($upload['size'] > NETOPIA_MAX_KEY_FILE_SIZE) {
+        fn_set_notification('W', __('warning'), __('netopia_key_too_large'));
+        return null;
+    }
+
+    // Read and validate content
+    $content = file_get_contents($upload['tmp_name']);
+    if ($content === false || empty(trim($content))) {
+        fn_set_notification('W', __('warning'), __('netopia_key_empty'));
+        return null;
+    }
+
+    // Sanitize filename (whitelist approach, prevent path traversal)
+    $safe_name = basename($upload['name']);
+    $safe_name = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $safe_name);
+    if (!preg_match('/^[a-zA-Z0-9._\-]+\.(pem|key|cer|crt|pub|txt)$/', $safe_name)) {
+        fn_set_notification('W', __('warning'), __('netopia_key_invalid_extension', ['[ext]' => $ext]));
+        return null;
+    }
+
+    // Create directory if needed
+    if (!is_dir($keys_dir)) {
+        fn_mkdir($keys_dir);
+        if (!is_dir($keys_dir)) {
+            fn_set_notification('W', __('warning'), __('netopia_key_upload_failed'));
+            return null;
+        }
+    }
+
+    fn_netopia_secure_keys_dir($keys_dir);
+
+    // Remove old file for this key slot
+    $file_field = $param_key . '_file';
+    if (!empty($params[$file_field])) {
+        $old_file = $keys_dir . basename($params[$file_field]);
+        if (file_exists($old_file)) {
+            unlink($old_file);
+        }
+    }
+
+    $dest_path = $keys_dir . $safe_name;
+
+    if (move_uploaded_file($upload['tmp_name'], $dest_path)) {
+        if (!chmod($dest_path, NETOPIA_KEY_FILE_PERMISSIONS)) {
+            fn_set_notification('W', __('warning'), 'File uploaded but permissions could not be set.');
+        }
+        $params[$file_field] = $safe_name;
+        $params[$param_key] = trim($content);
+
+        fn_set_notification('N', __('notice'), __('netopia_key_uploaded', ['[key]' => $param_key]));
+        return $params;
+    }
+
+    fn_set_notification('W', __('warning'), __('netopia_key_upload_failed'));
+    return null;
+}
+
+/**
+ * Write security files (.htaccess, index.html) to prevent direct web access to keys.
  */
 function fn_netopia_secure_keys_dir(string $dir): void
 {
     $htaccess = $dir . '.htaccess';
     if (!file_exists($htaccess)) {
-        file_put_contents($htaccess, "Order Deny,Allow\nDeny from all\n");
+        $written = file_put_contents($htaccess, "Order Deny,Allow\nDeny from all\n");
+        if ($written === false) {
+            fn_log_event('general', 'runtime', ['message' => 'NETOPIA: Failed to create .htaccess in keys directory']);
+        }
     }
 
     $index = $dir . 'index.html';
@@ -216,9 +318,16 @@ function fn_netopia_secure_keys_dir(string $dir): void
     }
 }
 
+// ---------------------------------------------------------------------------
+// Country code mapping
+// ---------------------------------------------------------------------------
+
 /**
  * ISO 3166-1 alpha-2 to numeric country code mapping.
  * NETOPIA API requires numeric country codes.
+ *
+ * @param string $alpha2 Two-letter country code (e.g. 'RO')
+ * @return int Numeric ISO 3166-1 country code (defaults to Romania 642)
  */
 function fn_netopia_get_country_numeric_code(string $alpha2): int
 {
@@ -258,8 +367,12 @@ function fn_netopia_get_country_numeric_code(string $alpha2): int
         'VE' => 862, 'VN' => 704, 'YE' => 887, 'ZM' => 894, 'ZW' => 716,
     ];
 
-    return $map[strtoupper($alpha2)] ?? 642;
+    return $map[strtoupper($alpha2)] ?? NETOPIA_DEFAULT_COUNTRY_CODE;
 }
+
+// ---------------------------------------------------------------------------
+// API communication
+// ---------------------------------------------------------------------------
 
 /**
  * Send an HTTP request to the NETOPIA API.
@@ -272,6 +385,15 @@ function fn_netopia_get_country_numeric_code(string $alpha2): int
  */
 function fn_netopia_api_request(string $endpoint, string $json_body, string $api_key, bool $is_live = false): array
 {
+    if (empty($api_key)) {
+        return [
+            'status'  => 0,
+            'code'    => 0,
+            'message' => 'API key is not configured.',
+            'data'    => null,
+        ];
+    }
+
     $base_url = $is_live
         ? 'https://secure.netopia-payments.com/api/'
         : 'https://secure-sandbox.netopia-payments.com/';
@@ -279,12 +401,20 @@ function fn_netopia_api_request(string $endpoint, string $json_body, string $api
     $url = rtrim($base_url, '/') . '/' . ltrim($endpoint, '/');
 
     $ch = curl_init($url);
+    if ($ch === false) {
+        return [
+            'status'  => 0,
+            'code'    => 0,
+            'message' => 'Failed to initialize HTTP client.',
+            'data'    => null,
+        ];
+    }
 
     curl_setopt_array($ch, [
         CURLOPT_CUSTOMREQUEST  => 'POST',
         CURLOPT_POSTFIELDS     => $json_body,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_TIMEOUT        => NETOPIA_API_TIMEOUT,
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_HTTPHEADER     => [
@@ -298,16 +428,24 @@ function fn_netopia_api_request(string $endpoint, string $json_body, string $api
     $error     = curl_error($ch);
     curl_close($ch);
 
-    if ($error) {
+    if ($result === false || $error !== '') {
         return [
             'status'  => 0,
             'code'    => 0,
-            'message' => 'cURL error: ' . $error,
+            'message' => 'Connection error occurred.',
             'data'    => null,
         ];
     }
 
     $data = json_decode($result, true);
+    if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+        return [
+            'status'  => 0,
+            'code'    => $http_code,
+            'message' => 'Invalid JSON response from NETOPIA.',
+            'data'    => null,
+        ];
+    }
 
     return [
         'status'  => ($http_code === 200) ? 1 : 0,
@@ -316,6 +454,139 @@ function fn_netopia_api_request(string $endpoint, string $json_body, string $api
         'data'    => $data,
     ];
 }
+
+// ---------------------------------------------------------------------------
+// Payment request building — shared helpers to eliminate duplication
+// ---------------------------------------------------------------------------
+
+/**
+ * Determine the payment currency and convert the order amount.
+ *
+ * @return array{currency: string, amount: float}
+ */
+function fn_netopia_resolve_currency_and_amount(array $processor_params, array $order_info): array
+{
+    $currency = 'RON';
+    if (!empty($processor_params['currency'])) {
+        if ($processor_params['currency'] === 'order_currency') {
+            $currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
+        } else {
+            $currency = $processor_params['currency'];
+        }
+    }
+
+    $order_currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
+    $amount = (float) $order_info['total'];
+    if ($currency !== $order_currency) {
+        $amount = fn_format_price_by_currency($order_info['total'], CART_PRIMARY_CURRENCY, $currency);
+    }
+
+    return ['currency' => $currency, 'amount' => $amount];
+}
+
+/**
+ * Build the product list from order info.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function fn_netopia_build_product_list(array $order_info, float $amount): array
+{
+    $products = [];
+    if (!empty($order_info['products'])) {
+        foreach ($order_info['products'] as $product) {
+            $products[] = [
+                'name'     => (string) ($product['product'] ?? 'Product'),
+                'code'     => (string) ($product['product_code'] ?? $product['product_id'] ?? ''),
+                'category' => 'General',
+                'price'    => (float) ($product['price'] ?? 0),
+                'vat'      => 0,
+            ];
+        }
+    }
+    if (empty($products)) {
+        $products[] = [
+            'name'     => 'Order #' . $order_info['order_id'],
+            'code'     => (string) $order_info['order_id'],
+            'category' => 'General',
+            'price'    => $amount,
+            'vat'      => 0,
+        ];
+    }
+
+    return $products;
+}
+
+/**
+ * Build installments configuration.
+ *
+ * @return array{selected: int, available: array<int>}
+ */
+function fn_netopia_build_installments(int $installments): array
+{
+    $selected = max(1, $installments);
+    $available = [0];
+    if ($selected > 1) {
+        $available = range(2, $selected);
+        array_unshift($available, 0);
+    }
+
+    return ['selected' => $selected, 'available' => $available];
+}
+
+/**
+ * Build the common order section of the payment request payload.
+ *
+ * @return array<string, mixed>
+ */
+function fn_netopia_build_order_section(
+    array $processor_params,
+    array $order_info,
+    string $currency,
+    float $amount,
+    int $installments
+): array {
+    $billing_country = fn_netopia_get_country_numeric_code($order_info['b_country'] ?? 'RO');
+    $shipping_country = fn_netopia_get_country_numeric_code($order_info['s_country'] ?? $order_info['b_country'] ?? 'RO');
+
+    return [
+        'ntpID'        => null,
+        'posSignature' => (string) $processor_params['pos_signature'],
+        'dateTime'     => date('c'),
+        'description'  => 'Order #' . $order_info['order_id'],
+        'orderID'      => (string) $order_info['order_id'],
+        'amount'       => $amount,
+        'currency'     => $currency,
+        'billing'      => [
+            'email'      => (string) ($order_info['email'] ?? ''),
+            'phone'      => (string) ($order_info['b_phone'] ?? $order_info['phone'] ?? ''),
+            'firstName'  => (string) ($order_info['b_firstname'] ?? ''),
+            'lastName'   => (string) ($order_info['b_lastname'] ?? ''),
+            'city'       => (string) ($order_info['b_city'] ?? ''),
+            'country'    => $billing_country,
+            'state'      => (string) ($order_info['b_state_descr'] ?? $order_info['b_state'] ?? ''),
+            'postalCode' => (string) ($order_info['b_zipcode'] ?? ''),
+            'details'    => (string) ($order_info['b_address'] ?? '') . ' ' . ($order_info['b_address_2'] ?? ''),
+        ],
+        'shipping' => [
+            'email'      => (string) ($order_info['email'] ?? ''),
+            'phone'      => (string) ($order_info['s_phone'] ?? $order_info['phone'] ?? ''),
+            'firstName'  => (string) ($order_info['s_firstname'] ?? $order_info['b_firstname'] ?? ''),
+            'lastName'   => (string) ($order_info['s_lastname'] ?? $order_info['b_lastname'] ?? ''),
+            'city'       => (string) ($order_info['s_city'] ?? $order_info['b_city'] ?? ''),
+            'country'    => $shipping_country,
+            'state'      => (string) ($order_info['s_state_descr'] ?? $order_info['s_state'] ?? $order_info['b_state'] ?? ''),
+            'postalCode' => (string) ($order_info['s_zipcode'] ?? $order_info['b_zipcode'] ?? ''),
+            'details'    => (string) ($order_info['s_address'] ?? $order_info['b_address'] ?? '') . ' ' . ($order_info['s_address_2'] ?? ''),
+        ],
+        'products'     => fn_netopia_build_product_list($order_info, $amount),
+        'installments' => fn_netopia_build_installments($installments),
+        'data'         => null,
+    ];
+}
+
+// ---------------------------------------------------------------------------
+// Payment request builders
+// ---------------------------------------------------------------------------
 
 /**
  * Build the JSON payload for NETOPIA Start payment request.
@@ -330,57 +601,7 @@ function fn_netopia_build_start_request(array $processor_params, array $order_in
 {
     $notify_url  = fn_url('payment_notification.notify?payment=netopia_payments', AREA, 'current');
     $redirect_url = fn_url('payment_notification.return?payment=netopia_payments', AREA, 'current');
-
-    // Determine currency
-    $currency = 'RON';
-    if (!empty($processor_params['currency'])) {
-        if ($processor_params['currency'] === 'order_currency') {
-            $currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
-        } else {
-            $currency = $processor_params['currency'];
-        }
-    }
-
-    // Convert amount to the selected currency
-    $order_currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
-    $amount = (float) $order_info['total'];
-    if ($currency !== $order_currency) {
-        $amount = fn_format_price_by_currency($order_info['total'], CART_PRIMARY_CURRENCY, $currency);
-    }
-
-    $billing_country = fn_netopia_get_country_numeric_code($order_info['b_country'] ?? 'RO');
-    $shipping_country = fn_netopia_get_country_numeric_code($order_info['s_country'] ?? $order_info['b_country'] ?? 'RO');
-
-    // Build product list
-    $products = [];
-    if (!empty($order_info['products'])) {
-        foreach ($order_info['products'] as $product) {
-            $products[] = [
-                'name'     => (string) ($product['product'] ?? 'Product'),
-                'code'     => (string) ($product['product_code'] ?? $product['product_id'] ?? ''),
-                'category' => 'General',
-                'price'    => (float) ($product['price'] ?? 0),
-                'vat'      => 0,
-            ];
-        }
-    }
-    if (empty($products)) {
-        $products[] = [
-            'name'     => 'Order #' . $order_info['order_id'],
-            'code'     => (string) $order_info['order_id'],
-            'category' => 'General',
-            'price'    => $amount,
-            'vat'      => 0,
-        ];
-    }
-
-    // Installments configuration
-    $installments_selected = max(1, $installments);
-    $installments_available = [0];
-    if ($installments_selected > 1) {
-        $installments_available = range(2, $installments_selected);
-        array_unshift($installments_available, 0);
-    }
+    $resolved = fn_netopia_resolve_currency_and_amount($processor_params, $order_info);
 
     $payload = [
         'config' => [
@@ -391,7 +612,7 @@ function fn_netopia_build_start_request(array $processor_params, array $order_in
         ],
         'payment' => [
             'options' => [
-                'installments' => $installments_selected,
+                'installments' => max(1, $installments),
                 'bonus'        => 0,
             ],
             'instrument' => [
@@ -404,107 +625,85 @@ function fn_netopia_build_start_request(array $processor_params, array $order_in
             ],
             'data' => $three_ds_data,
         ],
-        'order' => [
-            'ntpID'        => null,
-            'posSignature' => (string) $processor_params['pos_signature'],
-            'dateTime'     => date('c'),
-            'description'  => 'Order #' . $order_info['order_id'],
-            'orderID'      => (string) $order_info['order_id'],
-            'amount'       => $amount,
-            'currency'     => $currency,
-            'billing' => [
-                'email'      => (string) ($order_info['email'] ?? ''),
-                'phone'      => (string) ($order_info['b_phone'] ?? $order_info['phone'] ?? ''),
-                'firstName'  => (string) ($order_info['b_firstname'] ?? ''),
-                'lastName'   => (string) ($order_info['b_lastname'] ?? ''),
-                'city'       => (string) ($order_info['b_city'] ?? ''),
-                'country'    => $billing_country,
-                'state'      => (string) ($order_info['b_state_descr'] ?? $order_info['b_state'] ?? ''),
-                'postalCode' => (string) ($order_info['b_zipcode'] ?? ''),
-                'details'    => (string) ($order_info['b_address'] ?? '') . ' ' . ($order_info['b_address_2'] ?? ''),
-            ],
-            'shipping' => [
-                'email'      => (string) ($order_info['email'] ?? ''),
-                'phone'      => (string) ($order_info['s_phone'] ?? $order_info['phone'] ?? ''),
-                'firstName'  => (string) ($order_info['s_firstname'] ?? $order_info['b_firstname'] ?? ''),
-                'lastName'   => (string) ($order_info['s_lastname'] ?? $order_info['b_lastname'] ?? ''),
-                'city'       => (string) ($order_info['s_city'] ?? $order_info['b_city'] ?? ''),
-                'country'    => $shipping_country,
-                'state'      => (string) ($order_info['s_state_descr'] ?? $order_info['s_state'] ?? $order_info['b_state'] ?? ''),
-                'postalCode' => (string) ($order_info['s_zipcode'] ?? $order_info['b_zipcode'] ?? ''),
-                'details'    => (string) ($order_info['s_address'] ?? $order_info['b_address'] ?? '') . ' ' . ($order_info['s_address_2'] ?? ''),
-            ],
-            'products'     => $products,
-            'installments' => [
-                'selected'  => $installments_selected,
-                'available' => $installments_available,
-            ],
-            'data' => null,
-        ],
+        'order' => fn_netopia_build_order_section(
+            $processor_params, $order_info,
+            $resolved['currency'], $resolved['amount'],
+            $installments
+        ),
     ];
 
-    return json_encode($payload);
+    return (string) json_encode($payload);
 }
 
 /**
  * Collect 3D Secure browser fingerprint data from server-side variables and POST data.
  *
- * @return array 3DS device data for the NETOPIA API
+ * Values are sanitized and length-limited to prevent abuse.
+ *
+ * @return array<string, string>
  */
 function fn_netopia_get_3ds_data(): array
 {
     return [
-        'BROWSER_USER_AGENT'    => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown',
+        'BROWSER_USER_AGENT'    => fn_netopia_sanitize_3ds_field($_SERVER['HTTP_USER_AGENT'] ?? 'Unknown'),
         'OS'                    => php_uname('s'),
         'OS_VERSION'            => php_uname('r'),
         'MOBILE'                => (isset($_POST['netopia_mobile']) && $_POST['netopia_mobile'] === 'true') ? 'true' : 'false',
-        'SCREEN_POINT'          => $_POST['netopia_screen_point'] ?? 'false',
-        'SCREEN_PRINT'          => $_POST['netopia_screen_print'] ?? 'Current Resolution: 1920x1080',
-        'BROWSER_COLOR_DEPTH'   => $_POST['netopia_color_depth'] ?? '24',
-        'BROWSER_SCREEN_HEIGHT' => $_POST['netopia_screen_height'] ?? '1080',
-        'BROWSER_SCREEN_WIDTH'  => $_POST['netopia_screen_width'] ?? '1920',
-        'BROWSER_PLUGINS'       => $_POST['netopia_plugins'] ?? '',
-        'BROWSER_JAVA_ENABLED'  => $_POST['netopia_java_enabled'] ?? 'false',
-        'BROWSER_LANGUAGE'      => $_POST['netopia_language'] ?? ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'en-US'),
-        'BROWSER_TZ'            => $_POST['netopia_tz'] ?? 'Europe/Bucharest',
-        'BROWSER_TZ_OFFSET'     => $_POST['netopia_tz_offset'] ?? '0',
-        'IP_ADDRESS'            => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
+        'SCREEN_POINT'          => fn_netopia_sanitize_3ds_field($_POST['netopia_screen_point'] ?? 'false'),
+        'SCREEN_PRINT'          => fn_netopia_sanitize_3ds_field($_POST['netopia_screen_print'] ?? 'Current Resolution: 1920x1080'),
+        'BROWSER_COLOR_DEPTH'   => fn_netopia_sanitize_3ds_field($_POST['netopia_color_depth'] ?? '24'),
+        'BROWSER_SCREEN_HEIGHT' => fn_netopia_sanitize_3ds_field($_POST['netopia_screen_height'] ?? '1080'),
+        'BROWSER_SCREEN_WIDTH'  => fn_netopia_sanitize_3ds_field($_POST['netopia_screen_width'] ?? '1920'),
+        'BROWSER_PLUGINS'       => fn_netopia_sanitize_3ds_field($_POST['netopia_plugins'] ?? ''),
+        'BROWSER_JAVA_ENABLED'  => fn_netopia_sanitize_3ds_field($_POST['netopia_java_enabled'] ?? 'false'),
+        'BROWSER_LANGUAGE'      => fn_netopia_sanitize_3ds_field($_POST['netopia_language'] ?? ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'en-US')),
+        'BROWSER_TZ'            => fn_netopia_sanitize_3ds_field($_POST['netopia_tz'] ?? 'Europe/Bucharest'),
+        'BROWSER_TZ_OFFSET'     => fn_netopia_sanitize_3ds_field($_POST['netopia_tz_offset'] ?? '0'),
+        'IP_ADDRESS'            => fn_netopia_sanitize_ip($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'),
     ];
 }
 
 /**
+ * Sanitize a 3DS browser fingerprint field value.
+ */
+function fn_netopia_sanitize_3ds_field(string $value): string
+{
+    $value = preg_replace('/[\x00-\x1F\x7F]/', '', $value) ?? '';
+    return substr($value, 0, NETOPIA_MAX_3DS_FIELD_LENGTH);
+}
+
+/**
+ * Sanitize and validate an IP address string.
+ */
+function fn_netopia_sanitize_ip(string $ip): string
+{
+    $filtered = filter_var($ip, FILTER_VALIDATE_IP);
+    return $filtered !== false ? $filtered : '127.0.0.1';
+}
+
+// ---------------------------------------------------------------------------
+// IPN verification
+// ---------------------------------------------------------------------------
+
+/**
  * Verify a NETOPIA IPN callback by validating the JWT signature.
- *
- * Implements JWT RS512 verification without requiring firebase/php-jwt,
- * using PHP's built-in OpenSSL functions.
  *
  * @param string $public_key_pem   NETOPIA's public key in PEM format
  * @param string $pos_signature    Merchant POS signature
- * @param string $raw_post_body    Raw POST body (read once, passed in to avoid double-read of php://input)
+ * @param string $raw_post_body    Raw POST body
  * @return array{verified: bool, payload: array|null, error: string}
  */
 function fn_netopia_verify_ipn(string $public_key_pem, string $pos_signature, string $raw_post_body): array
 {
-    // Get the Verification-Token from HTTP headers
-    $verification_token = null;
-    if (function_exists('getallheaders')) {
-        foreach (getallheaders() as $name => $value) {
-            if (strcasecmp($name, 'Verification-Token') === 0) {
-                $verification_token = $value;
-                break;
-            }
-        }
-    }
+    $verification_token = fn_netopia_extract_verification_token();
     if ($verification_token === null) {
-        $server_key = 'HTTP_VERIFICATION_TOKEN';
-        $verification_token = $_SERVER[$server_key] ?? null;
-    }
-
-    if (empty($verification_token)) {
         return ['verified' => false, 'payload' => null, 'error' => 'Missing Verification-Token header'];
     }
 
-    // Split JWT into parts
+    if (strlen($verification_token) > NETOPIA_MAX_JWT_TOKEN_SIZE) {
+        return ['verified' => false, 'payload' => null, 'error' => 'JWT token exceeds maximum allowed size'];
+    }
+
     $parts = explode('.', $verification_token);
     if (count($parts) !== 3) {
         return ['verified' => false, 'payload' => null, 'error' => 'Invalid JWT format'];
@@ -512,9 +711,8 @@ function fn_netopia_verify_ipn(string $public_key_pem, string $pos_signature, st
 
     [$header_b64, $payload_b64, $signature_b64] = $parts;
 
-    // Decode header
     $header = json_decode(fn_netopia_base64url_decode($header_b64), true);
-    if (!$header || ($header['typ'] ?? '') !== 'JWT') {
+    if ($header === null || ($header['typ'] ?? '') !== 'JWT') {
         return ['verified' => false, 'payload' => null, 'error' => 'Invalid JWT type'];
     }
 
@@ -526,7 +724,6 @@ function fn_netopia_verify_ipn(string $public_key_pem, string $pos_signature, st
         default => OPENSSL_ALGO_SHA512,
     };
 
-    // Verify signature
     $public_key = openssl_pkey_get_public($public_key_pem);
     if ($public_key === false) {
         return ['verified' => false, 'payload' => null, 'error' => 'Invalid public key'];
@@ -534,41 +731,35 @@ function fn_netopia_verify_ipn(string $public_key_pem, string $pos_signature, st
 
     $data_to_verify = $header_b64 . '.' . $payload_b64;
     $signature = fn_netopia_base64url_decode($signature_b64);
-
-    $verify_result = openssl_verify($data_to_verify, $signature, $public_key, $openssl_alg);
-    if ($verify_result !== 1) {
+    if (openssl_verify($data_to_verify, $signature, $public_key, $openssl_alg) !== 1) {
         return ['verified' => false, 'payload' => null, 'error' => 'JWT signature verification failed'];
     }
 
-    // Decode JWT payload (claims)
     $jwt_claims = json_decode(fn_netopia_base64url_decode($payload_b64), true);
-    if (!$jwt_claims) {
+    if ($jwt_claims === null || json_last_error() !== JSON_ERROR_NONE) {
         return ['verified' => false, 'payload' => null, 'error' => 'Invalid JWT payload'];
     }
 
-    // Verify issuer
-    if (($jwt_claims['iss'] ?? '') !== 'NETOPIA Payments') {
+    // Use hash_equals for all security comparisons to prevent timing attacks
+    if (!hash_equals('NETOPIA Payments', (string) ($jwt_claims['iss'] ?? ''))) {
         return ['verified' => false, 'payload' => null, 'error' => 'Invalid JWT issuer'];
     }
 
-    // Verify audience matches POS signature
     $aud = $jwt_claims['aud'] ?? '';
     if (is_array($aud)) {
         $aud = $aud[0] ?? '';
     }
-    if ($aud !== $pos_signature) {
+    if (!hash_equals($pos_signature, (string) $aud)) {
         return ['verified' => false, 'payload' => null, 'error' => 'JWT audience mismatch'];
     }
 
-    // Verify payload integrity (subject = hash of raw POST body)
     $payload_hash = base64_encode(hash('sha512', $raw_post_body, true));
-    if (($jwt_claims['sub'] ?? '') !== $payload_hash) {
+    if (!hash_equals($payload_hash, (string) ($jwt_claims['sub'] ?? ''))) {
         return ['verified' => false, 'payload' => null, 'error' => 'Payload integrity check failed'];
     }
 
-    // Decode IPN payload from raw POST body
     $ipn_data = json_decode($raw_post_body, true);
-    if (!$ipn_data) {
+    if ($ipn_data === null && json_last_error() !== JSON_ERROR_NONE) {
         return ['verified' => false, 'payload' => null, 'error' => 'Invalid IPN payload JSON'];
     }
 
@@ -576,33 +767,53 @@ function fn_netopia_verify_ipn(string $public_key_pem, string $pos_signature, st
 }
 
 /**
+ * Extract the Verification-Token from HTTP headers.
+ */
+function fn_netopia_extract_verification_token(): ?string
+{
+    if (function_exists('getallheaders')) {
+        foreach (getallheaders() as $name => $value) {
+            if (strcasecmp($name, 'Verification-Token') === 0) {
+                return $value;
+            }
+        }
+    }
+
+    return $_SERVER['HTTP_VERIFICATION_TOKEN'] ?? null;
+}
+
+/**
  * Base64url decode (JWT-compatible).
  */
 function fn_netopia_base64url_decode(string $data): string
 {
-    return base64_decode(strtr($data, '-_', '+/'));
+    $decoded = base64_decode(strtr($data, '-_', '+/'), true);
+    return $decoded !== false ? $decoded : '';
 }
+
+// ---------------------------------------------------------------------------
+// Status mapping
+// ---------------------------------------------------------------------------
 
 /**
  * Return NETOPIA status definitions: code, label, and default CS-Cart mapping.
  *
- * Used by both the admin template (to render dropdowns) and the mapping function.
  * Accepts a dummy parameter so it can be called as a Smarty modifier:
  *   {$ntp_statuses = ""|fn_netopia_get_status_definitions}
  *
  * @param mixed $dummy Unused (required for Smarty modifier compatibility)
- * @return array Array of [code => ['label' => string, 'default' => string, 'group' => string]]
+ * @return array<int, array{label: string, default: string, group: string}>
  */
 function fn_netopia_get_status_definitions($dummy = null): array
 {
     return [
-        3  => ['label' => 'Paid',        'default' => 'P', 'group' => 'success'],
-        5  => ['label' => 'Confirmed',   'default' => 'P', 'group' => 'success'],
+        NETOPIA_STATUS_PAID      => ['label' => 'Paid',        'default' => 'P', 'group' => 'success'],
+        NETOPIA_STATUS_CONFIRMED => ['label' => 'Confirmed',   'default' => 'P', 'group' => 'success'],
         1  => ['label' => 'New',         'default' => 'O', 'group' => 'pending'],
         2  => ['label' => 'Opened',      'default' => 'O', 'group' => 'pending'],
         6  => ['label' => 'Pending',     'default' => 'O', 'group' => 'pending'],
         14 => ['label' => 'PendingAuth', 'default' => 'O', 'group' => 'pending'],
-        15 => ['label' => '3D Secure',   'default' => 'O', 'group' => 'pending'],
+        NETOPIA_STATUS_3DS_REQUIRED => ['label' => '3D Secure', 'default' => 'O', 'group' => 'pending'],
         18 => ['label' => 'PendingAny',  'default' => 'O', 'group' => 'pending'],
         4  => ['label' => 'Canceled',    'default' => 'I', 'group' => 'cancel'],
         8  => ['label' => 'Refund',      'default' => 'I', 'group' => 'cancel'],
@@ -617,41 +828,40 @@ function fn_netopia_get_status_definitions($dummy = null): array
 /**
  * Map NETOPIA payment status code to CS-Cart order status.
  *
- * Checks the custom mapping in processor_params first (keys like "status_map_3"),
- * then falls back to built-in defaults.
- *
  * @param int   $netopia_status   NETOPIA payment status code
  * @param array $processor_params Processor configuration (optional, for custom mapping)
  * @return string CS-Cart order status letter
  */
 function fn_netopia_map_order_status(int $netopia_status, array $processor_params = []): string
 {
-    // Check custom mapping from admin configuration
     $map_key = 'status_map_' . $netopia_status;
     if (!empty($processor_params[$map_key])) {
         return $processor_params[$map_key];
     }
 
-    // Fall back to built-in defaults
     $definitions = fn_netopia_get_status_definitions();
     if (isset($definitions[$netopia_status])) {
         return $definitions[$netopia_status]['default'];
     }
 
-    return 'O'; // Unknown status → Open
+    return 'O';
 }
+
+// ---------------------------------------------------------------------------
+// Verify auth
+// ---------------------------------------------------------------------------
 
 /**
  * Build the JSON payload for NETOPIA VerifyAuth request.
  *
  * @param string $authentication_token Token from start payment response
  * @param string $ntp_id               NETOPIA transaction ID
- * @param string $pa_res               payer authentication response from 3DS
+ * @param string $pa_res               Payer authentication response from 3DS
  * @return string JSON-encoded request body
  */
 function fn_netopia_build_verify_auth_request(string $authentication_token, string $ntp_id, string $pa_res): string
 {
-    return json_encode([
+    return (string) json_encode([
         'authenticationToken' => $authentication_token,
         'ntpID'               => $ntp_id,
         'formData'            => [
@@ -660,12 +870,14 @@ function fn_netopia_build_verify_auth_request(string $authentication_token, stri
     ]);
 }
 
+// ---------------------------------------------------------------------------
+// Payment link
+// ---------------------------------------------------------------------------
+
 /**
  * Build the JSON payload for a NETOPIA payment link request.
  *
- * Uses the same /payment/card/start endpoint but with empty instrument fields,
- * which causes NETOPIA to return error code 101 with a paymentURL for a
- * hosted payment page the customer can use to pay.
+ * Uses the same /payment/card/start endpoint but with empty instrument fields.
  *
  * @param array $processor_params Processor configuration from admin
  * @param array $order_info       CS-Cart order information
@@ -676,61 +888,10 @@ function fn_netopia_build_payment_link_request(array $processor_params, array $o
 {
     $notify_url  = fn_url('payment_notification.notify?payment=netopia_payments', AREA, 'current');
     $redirect_url = fn_url('payment_notification.return?payment=netopia_payments', AREA, 'current');
+    $resolved = fn_netopia_resolve_currency_and_amount($processor_params, $order_info);
 
-    // Determine currency
-    $currency = 'RON';
-    if (!empty($processor_params['currency'])) {
-        if ($processor_params['currency'] === 'order_currency') {
-            $currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
-        } else {
-            $currency = $processor_params['currency'];
-        }
-    }
-
-    // Convert amount to the selected currency
-    $order_currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
-    $amount = (float) $order_info['total'];
-    if ($currency !== $order_currency) {
-        $amount = fn_format_price_by_currency($order_info['total'], CART_PRIMARY_CURRENCY, $currency);
-    }
-
-    $billing_country = fn_netopia_get_country_numeric_code($order_info['b_country'] ?? 'RO');
-    $shipping_country = fn_netopia_get_country_numeric_code($order_info['s_country'] ?? $order_info['b_country'] ?? 'RO');
-
-    // Build product list
-    $products = [];
-    if (!empty($order_info['products'])) {
-        foreach ($order_info['products'] as $product) {
-            $products[] = [
-                'name'     => (string) ($product['product'] ?? 'Product'),
-                'code'     => (string) ($product['product_code'] ?? $product['product_id'] ?? ''),
-                'category' => 'General',
-                'price'    => (float) ($product['price'] ?? 0),
-                'vat'      => 0,
-            ];
-        }
-    }
-    if (empty($products)) {
-        $products[] = [
-            'name'     => 'Order #' . $order_info['order_id'],
-            'code'     => (string) $order_info['order_id'],
-            'category' => 'General',
-            'price'    => $amount,
-            'vat'      => 0,
-        ];
-    }
-
-    // Installments configuration
-    $installments_selected = max(1, $installments);
-    $installments_available = [0];
-    if ($installments_selected > 1) {
-        $installments_available = range(2, $installments_selected);
-        array_unshift($installments_available, 0);
-    }
-
-    // 3DS data — use server defaults since this is an admin-initiated request
     $three_ds_data = [
-        'BROWSER_USER_AGENT'    => $_SERVER['HTTP_USER_AGENT'] ?? 'NETOPIA Payment Link',
+        'BROWSER_USER_AGENT'    => fn_netopia_sanitize_3ds_field($_SERVER['HTTP_USER_AGENT'] ?? 'NETOPIA Payment Link'),
         'OS'                    => php_uname('s'),
         'OS_VERSION'            => php_uname('r'),
         'MOBILE'                => 'false',
@@ -744,7 +905,7 @@ function fn_netopia_build_payment_link_request(array $processor_params, array $o
         'BROWSER_LANGUAGE'      => 'en-US',
         'BROWSER_TZ'            => 'Europe/Bucharest',
         'BROWSER_TZ_OFFSET'     => '0',
-        'IP_ADDRESS'            => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
+        'IP_ADDRESS'            => fn_netopia_sanitize_ip($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'),
     ];
 
     $payload = [
@@ -756,7 +917,7 @@ function fn_netopia_build_payment_link_request(array $processor_params, array $o
         ],
         'payment' => [
             'options' => [
-                'installments' => $installments_selected,
+                'installments' => max(1, $installments),
                 'bonus'        => 0,
             ],
             'instrument' => [
@@ -769,53 +930,18 @@ function fn_netopia_build_payment_link_request(array $processor_params, array $o
             ],
             'data' => $three_ds_data,
         ],
-        'order' => [
-            'ntpID'        => null,
-            'posSignature' => (string) $processor_params['pos_signature'],
-            'dateTime'     => date('c'),
-            'description'  => 'Order #' . $order_info['order_id'],
-            'orderID'      => (string) $order_info['order_id'],
-            'amount'       => $amount,
-            'currency'     => $currency,
-            'billing' => [
-                'email'      => (string) ($order_info['email'] ?? ''),
-                'phone'      => (string) ($order_info['b_phone'] ?? $order_info['phone'] ?? ''),
-                'firstName'  => (string) ($order_info['b_firstname'] ?? ''),
-                'lastName'   => (string) ($order_info['b_lastname'] ?? ''),
-                'city'       => (string) ($order_info['b_city'] ?? ''),
-                'country'    => $billing_country,
-                'state'      => (string) ($order_info['b_state_descr'] ?? $order_info['b_state'] ?? ''),
-                'postalCode' => (string) ($order_info['b_zipcode'] ?? ''),
-                'details'    => (string) ($order_info['b_address'] ?? '') . ' ' . ($order_info['b_address_2'] ?? ''),
-            ],
-            'shipping' => [
-                'email'      => (string) ($order_info['email'] ?? ''),
-                'phone'      => (string) ($order_info['s_phone'] ?? $order_info['phone'] ?? ''),
-                'firstName'  => (string) ($order_info['s_firstname'] ?? $order_info['b_firstname'] ?? ''),
-                'lastName'   => (string) ($order_info['s_lastname'] ?? $order_info['b_lastname'] ?? ''),
-                'city'       => (string) ($order_info['s_city'] ?? $order_info['b_city'] ?? ''),
-                'country'    => $shipping_country,
-                'state'      => (string) ($order_info['s_state_descr'] ?? $order_info['s_state'] ?? $order_info['b_state'] ?? ''),
-                'postalCode' => (string) ($order_info['s_zipcode'] ?? $order_info['b_zipcode'] ?? ''),
-                'details'    => (string) ($order_info['s_address'] ?? $order_info['b_address'] ?? '') . ' ' . ($order_info['s_address_2'] ?? ''),
-            ],
-            'products'     => $products,
-            'installments' => [
-                'selected'  => $installments_selected,
-                'available' => $installments_available,
-            ],
-            'data' => null,
-        ],
+        'order' => fn_netopia_build_order_section(
+            $processor_params, $order_info,
+            $resolved['currency'], $resolved['amount'],
+            $installments
+        ),
     ];
 
-    return json_encode($payload);
+    return (string) json_encode($payload);
 }
 
 /**
  * Generate a NETOPIA payment link for an order.
- *
- * Calls /payment/card/start with empty instrument fields to get a hosted
- * payment page URL. Stores the payment link and NTP ID in order payment info.
  *
  * @param int $order_id CS-Cart order ID
  * @return array{success: bool, payment_url: string, error: string}
@@ -833,23 +959,17 @@ function fn_netopia_generate_payment_link(int $order_id): array
     }
 
     $params = $processor_data['processor_params'];
-
     if (empty($params['pos_signature']) || empty($params['api_key'])) {
         return ['success' => false, 'payment_url' => '', 'error' => 'NETOPIA POS Signature or API Key missing.'];
     }
 
     $is_live = !empty($params['mode']) && $params['mode'] === 'live';
-
-    // Determine installments
     $installments = 1;
     if (!empty($params['allow_installments']) && $params['allow_installments'] === 'Y') {
         $installments = (int) ($params['max_installments'] ?? 1);
     }
 
-    // Build the payment link request (empty instrument)
     $json_request = fn_netopia_build_payment_link_request($params, $order_info, $installments);
-
-    // Send to NETOPIA API
     $response = fn_netopia_api_request('payment/card/start', $json_request, $params['api_key'], $is_live);
 
     if ($response['status'] !== 1 || empty($response['data'])) {
@@ -858,35 +978,30 @@ function fn_netopia_generate_payment_link(int $order_id): array
     }
 
     $data = $response['data'];
-
-    // Handle nested data structure (API may wrap in data.data)
     $inner_data = $data['data'] ?? $data;
     $error_code = (string) ($inner_data['error']['code'] ?? $data['error']['code'] ?? '');
     $payment_data = $inner_data['payment'] ?? $data['payment'] ?? [];
     $payment_url = (string) ($payment_data['paymentURL'] ?? '');
     $ntp_id = (string) ($payment_data['ntpID'] ?? '');
 
-    // Error code 101 = "Redirect user to payment page" — this is the expected response
-    if ($error_code === '101' && !empty($payment_url)) {
-        // Store payment link info in order payment info
-        $payment_info_update = [
+    if ($error_code === NETOPIA_ERROR_CODE_HOSTED_PAGE && !empty($payment_url)) {
+        fn_update_order_payment_info($order_id, [
             'netopia_ntp_id'          => $ntp_id,
             'netopia_payment_link'    => $payment_url,
             'netopia_payment_link_at' => date('c'),
             'transaction_id'          => $ntp_id,
-        ];
-        fn_update_order_payment_info($order_id, $payment_info_update);
-
-        // Set order to Open status while awaiting payment
+        ]);
         fn_change_order_status($order_id, 'O', '', false);
-
         return ['success' => true, 'payment_url' => $payment_url, 'error' => ''];
     }
 
-    // If we got a different response, report it
     $error_msg = $inner_data['error']['message'] ?? $data['error']['message'] ?? 'Unexpected response (code: ' . $error_code . ')';
     return ['success' => false, 'payment_url' => '', 'error' => $error_msg];
 }
+
+// ---------------------------------------------------------------------------
+// Payment link email
+// ---------------------------------------------------------------------------
 
 /**
  * Send a payment link email to the customer for an order.
@@ -920,7 +1035,6 @@ function fn_netopia_send_payment_link_email(int $order_id, string $payment_url):
         '[company_name]'  => $company_name,
     ]);
 
-    // Use CS-Cart's mailer
     $mailer = Tygh::$app['mailer'];
     $result = $mailer->send([
         'to'      => $order_info['email'],
@@ -935,7 +1049,6 @@ function fn_netopia_send_payment_link_email(int $order_id, string $payment_url):
         'tpl'     => 'addons/netopia_payments/payment_link_email.tpl',
     ], 'A');
 
-    // Fallback: if template-based sending fails, try simple mail
     if (!$result) {
         $result = $mailer->send([
             'to'      => $order_info['email'],
@@ -949,6 +1062,10 @@ function fn_netopia_send_payment_link_email(int $order_id, string $payment_url):
     return (bool) $result;
 }
 
+// ---------------------------------------------------------------------------
+// Status query
+// ---------------------------------------------------------------------------
+
 /**
  * Build the JSON payload for NETOPIA Status query.
  *
@@ -959,7 +1076,7 @@ function fn_netopia_send_payment_link_email(int $order_id, string $payment_url):
  */
 function fn_netopia_build_status_request(string $pos_signature, string $ntp_id, string $order_id): string
 {
-    return json_encode([
+    return (string) json_encode([
         'posID'   => $pos_signature,
         'ntpID'   => $ntp_id,
         'orderID' => $order_id,

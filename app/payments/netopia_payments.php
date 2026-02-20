@@ -12,7 +12,9 @@
 
 use Tygh\Registry;
 
-if (!defined('BOOTSTRAP')) { die('Access denied'); }
+if (!defined('BOOTSTRAP')) {
+    die('Access denied');
+}
 
 // Include addon functions
 require_once Registry::get('config.dir.addons') . 'netopia_payments/func.php';
@@ -115,7 +117,7 @@ $payment_info_update = [
 // Handle response based on error code and status
 // -----------------------------------------------------------------------
 
-if ($error_code === '100' && $ntp_status === 15) {
+if ($error_code === NETOPIA_ERROR_CODE_3DS && $ntp_status === NETOPIA_STATUS_3DS_REQUIRED) {
     // -------------------------------------------------------------------
     // 3D Secure Authentication Required
     // -------------------------------------------------------------------
@@ -156,7 +158,7 @@ if ($error_code === '100' && $ntp_status === 15) {
     fn_create_payment_form($bank_url, $form_data, 'NETOPIA 3D Secure', false);
     exit;
 
-} elseif ($error_code === '101' && !empty($payment_data['paymentURL'])) {
+} elseif ($error_code === NETOPIA_ERROR_CODE_HOSTED_PAGE && !empty($payment_data['paymentURL'])) {
     // -------------------------------------------------------------------
     // Hosted Payment Page — redirect customer to NETOPIA payment page
     // -------------------------------------------------------------------
@@ -177,7 +179,7 @@ if ($error_code === '100' && $ntp_status === 15) {
     fn_redirect($payment_url, true);
     exit;
 
-} elseif (($error_code === '0' || $error_code === '00') && ($ntp_status === 3 || $ntp_status === 5)) {
+} elseif (($error_code === '0' || $error_code === '00') && ($ntp_status === NETOPIA_STATUS_PAID || $ntp_status === NETOPIA_STATUS_CONFIRMED)) {
     // -------------------------------------------------------------------
     // Payment Approved directly (no 3DS needed)
     // -------------------------------------------------------------------
@@ -323,7 +325,7 @@ function fn_netopia_handle_3ds_return(): void
     $processor_data = fn_get_payment_method_data($order_info['payment_id']);
     $params = $processor_data['processor_params'] ?? [];
 
-    $pa_res = $_POST['paRes'] ?? $_REQUEST['paRes'] ?? '';
+    $pa_res = $_POST['paRes'] ?? '';
 
     if (empty($pa_res)) {
         // No paRes — customer may have cancelled 3DS. Check payment status via API.
@@ -374,7 +376,7 @@ function fn_netopia_handle_3ds_return(): void
     ];
     fn_update_order_payment_info($order_id, $payment_info_update);
 
-    if (($error_code === '0' || $error_code === '00') && ($ntp_status === 3 || $ntp_status === 5)) {
+    if (($error_code === '0' || $error_code === '00') && ($ntp_status === NETOPIA_STATUS_PAID || $ntp_status === NETOPIA_STATUS_CONFIRMED)) {
         // 3DS verification successful, payment approved
         $pp_response = [
             'order_status'   => fn_netopia_map_order_status($ntp_status, $params),

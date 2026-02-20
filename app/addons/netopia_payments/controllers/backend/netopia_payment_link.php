@@ -11,7 +11,9 @@
 
 use Tygh\Registry;
 
-if (!defined('BOOTSTRAP')) { die('Access denied'); }
+if (!defined('BOOTSTRAP')) {
+    die('Access denied');
+}
 
 require_once Registry::get('config.dir.addons') . 'netopia_payments/func.php';
 
@@ -19,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     return [CONTROLLER_STATUS_NO_PAGE];
 }
 
-$order_id = (int) ($_REQUEST['order_id'] ?? 0);
+$order_id = (int) ($_POST['order_id'] ?? 0);
 
 if (empty($order_id)) {
     fn_set_notification('E', __('error'), __('netopia_payment_link_no_order'));

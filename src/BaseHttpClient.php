@@ -1,89 +1,111 @@
 <?php
+
+declare(strict_types=1);
+
 namespace Netopia\Payment2;
 
-class BaseHttpClient {
-    protected $apiKey;
-    protected $isLive;
-    protected $baseUrl;
+use Netopia\Payment2\Exception\HttpException;
+use Netopia\Payment2\Exception\InvalidApiKeyException;
 
-    protected function initializeBaseUrl() {
-        $this->baseUrl = $this->isLive ? 'https://secure.netopia-payments.com/api/' : 'https://secure-sandbox.netopia-payments.com/';
+class BaseHttpClient
+{
+    private const BASE_URL_LIVE = 'https://secure.netopia-payments.com/api/';
+    private const BASE_URL_SANDBOX = 'https://secure-sandbox.netopia-payments.com/';
+    private const TIMEOUT_SECONDS = 30;
+
+    private const HTTP_MESSAGES = [
+        200 => 'Request successful',
+        400 => 'Bad Request',
+        401 => 'Authorization required',
+        404 => 'Endpoint not found',
+    ];
+
+    protected string $apiKey = '';
+    protected bool $isLive = false;
+
+    protected function getBaseUrl(): string
+    {
+        return $this->isLive ? self::BASE_URL_LIVE : self::BASE_URL_SANDBOX;
     }
 
-    protected function sendHttpRequest($endpoint, $payload, $method = 'POST') {
-        
-        $this->initializeBaseUrl();
-        $url = $this->baseUrl . $endpoint;
+    /**
+     * Send an HTTP request to the NETOPIA API.
+     *
+     * @param string $endpoint API endpoint path
+     * @param string $payload  JSON-encoded request body
+     * @param string $method   HTTP method (default POST)
+     * @return string JSON-encoded response
+     *
+     * @throws InvalidApiKeyException If apiKey is empty
+     * @throws HttpException          If the cURL request fails
+     */
+    protected function sendHttpRequest(string $endpoint, string $payload, string $method = 'POST'): string
+    {
+        if (empty($this->apiKey)) {
+            throw new InvalidApiKeyException('API key must not be empty.');
+        }
+
+        $url = rtrim($this->getBaseUrl(), '/') . '/' . ltrim($endpoint, '/');
 
         $ch = curl_init($url);
-
-        $headers = [
-            'Authorization: ' . $this->apiKey,
-            'Content-Type: application/json'
-        ];
-
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-        $result = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-        if (!curl_errno($ch)) {
-            $response = $this->handleResponse($httpCode, $result, $endpoint);
-        } else {
-            $response = [
-                'status' => 0,
-                'code' => 0,
-                'message' => "Connection error occurred "." | ".$endpoint,
-                'data' => null
-            ];
+        if ($ch === false) {
+            throw new HttpException('Failed to initialize cURL.');
         }
 
+        curl_setopt_array($ch, [
+            CURLOPT_CUSTOMREQUEST  => $method,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => self::TIMEOUT_SECONDS,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: ' . $this->apiKey,
+                'Content-Type: application/json',
+            ],
+        ]);
+
+        $result   = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error    = curl_error($ch);
         curl_close($ch);
-        return json_encode($response, JSON_FORCE_OBJECT);
+
+        if ($result === false || $error !== '') {
+            $response = [
+                'status'  => 0,
+                'code'    => 0,
+                'message' => 'Connection error occurred',
+                'data'    => null,
+            ];
+
+            return (string) json_encode($response, JSON_FORCE_OBJECT);
+        }
+
+        $response = $this->handleResponse($httpCode, (string) $result);
+
+        return (string) json_encode($response, JSON_FORCE_OBJECT);
     }
 
-    protected function handleResponse($httpCode, $result, $endpoint) {
+    /**
+     * Parse the HTTP response and return a normalized response array.
+     *
+     * @return array{status: int, code: int, message: string, data: mixed}
+     */
+    protected function handleResponse(int $httpCode, string $result): array
+    {
         $responseData = json_decode($result);
-        
-        switch ($httpCode) {
-            case 200:
-                return [
-                    'status' => 1,
-                    'code' => $httpCode,
-                    'message' => "Request successful "." | ".$endpoint,
-                    'data' => $responseData
-                ];
-            case 400:
-                return [
-                    'status' => 0,
-                    'code' => $httpCode,
-                    'message' => "Bad Request "." | ".$endpoint,
-                    'data' => $responseData
-                ];
-            case 401:
-                return [
-                    'status' => 0,
-                    'code' => $httpCode,
-                    'message' => "Authorization required "." | ".$endpoint,
-                    'data' => $responseData
-                ];
-            case 404:
-                return [
-                    'status' => 0,
-                    'code' => $httpCode,
-                    'message' => "Endpoint not found "." | ".$endpoint,
-                    'data' => $responseData
-                ];
-            default:
-                return [
-                    'status' => 0,
-                    'code' => $httpCode,
-                    'message' => "Unexpected error occurred "." | ".$endpoint,
-                    'data' => $responseData
-                ];
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $responseData = null;
         }
+
+        $message = self::HTTP_MESSAGES[$httpCode] ?? 'Unexpected error occurred';
+        $status  = ($httpCode === 200) ? 1 : 0;
+
+        return [
+            'status'  => $status,
+            'code'    => $httpCode,
+            'message' => $message,
+            'data'    => $responseData,
+        ];
     }
 }

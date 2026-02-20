@@ -1,1 +1,37 @@
+# macOS
 .DS_Store
+
+# Dependencies
+/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Security — never commit keys or certificates
+*.pem
+*.key
+*.p12
+*.pfx
+app/addons/netopia_payments/keys/
+
+# Build artifacts
+/composer.lock
+
+# PHPUnit
+.phpunit.result.cache
+.phpunit.cache/
+
+# PHPStan
+phpstan-baseline.neon
+
+# PHP-CS-Fixer
+.php-cs-fixer.cache

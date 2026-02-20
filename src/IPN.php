@@ -1,314 +1,301 @@
 <?php
+
+declare(strict_types=1);
+
 namespace Netopia\Payment2;
 
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
-use Firebase\JWT\SignatureInvalidException;
-use Firebase\JWT\BeforeValidException;
-use Firebase\JWT\ExpiredException;
+use Netopia\Payment2\Exception\VerificationFailedException;
 
-class IPN extends Request{
-   
-    public $activeKey;
-    public $posSignatureSet;
-    public $hashMethod;
-    public $alg;
-    public $publicKeyStr;
+/**
+ * IPN (Instant Payment Notification) handler for NETOPIA Payments.
+ *
+ * Verifies JWT signatures on IPN callbacks and decodes payment status.
+ */
+class IPN extends Request
+{
+    public string $activeKey = '';
 
-    // Error code defination
-    const E_VERIFICATION_FAILED_GENERAL			= 0x10000101;
-    const E_VERIFICATION_FAILED_SIGNATURE		= 0x10000102;
-    const E_VERIFICATION_FAILED_NBF_IAT			= 0x10000103;
-    const E_VERIFICATION_FAILED_EXPIRED			= 0x10000104;
-    const E_VERIFICATION_FAILED_AUDIENCE		= 0x10000105;
-    const E_VERIFICATION_FAILED_TAINTED_PAYLOAD	= 0x10000106;
-    const E_VERIFICATION_FAILED_PAYLOAD_FORMAT	= 0x10000107;
+    /** @var array<string> */
+    public array $posSignatureSet = [];
 
-    const ERROR_TYPE_NONE 		= 0x00;
-    const ERROR_TYPE_TEMPORARY 	= 0x01;
-    const ERROR_TYPE_PERMANENT 	= 0x02;
+    public string $hashMethod = '';
+    public string $alg = '';
+    public string $publicKeyStr = '';
+
+    // Error code definitions
+    public const E_VERIFICATION_FAILED_GENERAL         = 0x10000101;
+    public const E_VERIFICATION_FAILED_SIGNATURE        = 0x10000102;
+    public const E_VERIFICATION_FAILED_NBF_IAT          = 0x10000103;
+    public const E_VERIFICATION_FAILED_EXPIRED          = 0x10000104;
+    public const E_VERIFICATION_FAILED_AUDIENCE         = 0x10000105;
+    public const E_VERIFICATION_FAILED_TAINTED_PAYLOAD  = 0x10000106;
+    public const E_VERIFICATION_FAILED_PAYLOAD_FORMAT   = 0x10000107;
+
+    public const ERROR_TYPE_NONE      = 0x00;
+    public const ERROR_TYPE_TEMPORARY = 0x01;
+    public const ERROR_TYPE_PERMANENT = 0x02;
+
+    // Payment status constants
+    public const STATUS_NEW                                  = 1;
+    public const STATUS_OPENED                               = 2;
+    public const STATUS_PAID                                 = 3;
+    public const STATUS_CANCELED                             = 4;
+    public const STATUS_CONFIRMED                            = 5;
+    public const STATUS_PENDING                              = 6;
+    public const STATUS_SCHEDULED                            = 7;
+    public const STATUS_CREDIT                               = 8;
+    public const STATUS_CHARGEBACK_INIT                      = 9;
+    public const STATUS_CHARGEBACK_ACCEPT                    = 10;
+    public const STATUS_ERROR                                = 11;
+    public const STATUS_DECLINED                             = 12;
+    public const STATUS_FRAUD                                = 13;
+    public const STATUS_PENDING_AUTH                         = 14;
+    public const STATUS_3D_AUTH                              = 15;
+    public const STATUS_CHARGEBACK_REPRESENTMENT             = 16;
+    public const STATUS_REVERSED                             = 17;
+    public const STATUS_PENDING_ANY                          = 18;
+    public const STATUS_PROGRAMMED_RECURRENT_PAYMENT         = 19;
+    public const STATUS_CANCELED_PROGRAMMED_RECURRENT_PAYMENT = 20;
+    public const STATUS_TRIAL_PENDING                        = 21;
+    public const STATUS_TRIAL                                = 22;
+    public const STATUS_EXPIRED                              = 23;
 
     /**
-     * Available statuses for the purchase class (prcStatus)
+     * Verify an IPN callback from NETOPIA.
+     *
+     * @return array{errorType: int, errorCode: int|null, errorMessage: string}
      */
-    const STATUS_NEW 									= 1;	//0x01;         // new purchase status
-    const STATUS_OPENED 								= 2;	//0x02;         // specific to Model_Purchase_Card purchases (after preauthorization) and Model_Purchase_Cash
-    const STATUS_PAID 									= 3;	//0x03;         // capturate (card)
-    const STATUS_CANCELED 								= 4;	//0x04;         // void
-    const STATUS_CONFIRMED 								= 5;	//0x05;         // confirmed status (after IPN)
-    const STATUS_PENDING 								= 6;	//0x06;         // pending status
-    const STATUS_SCHEDULED 								= 7;	//0x07;         // scheduled status, specific to Model_Purchase_Sms_Online / Model_Purchase_Sms_Offline
-    const STATUS_CREDIT 								= 8;	//0x08;         // specific status to a capture & refund state
-    const STATUS_CHARGEBACK_INIT 						= 9;	//0x09;         // status specific to chargeback initialization
-    const STATUS_CHARGEBACK_ACCEPT 						= 10;	//0x0a;         // status specific when chargeback has been accepted
-    const STATUS_ERROR 									= 11;	//0x0b;         // error status
-    const STATUS_DECLINED 								= 12;	//0x0c;         // declined status
-    const STATUS_FRAUD 									= 13;	//0x0d;         // fraud status
-    const STATUS_PENDING_AUTH 							= 14;	//0x0e;         // specific status to authorization pending, awaiting acceptance (verify)
-    const STATUS_3D_AUTH 								= 15;	//0x0f;         // 3D authorized status, speficic to Model_Purchase_Card
-    const STATUS_CHARGEBACK_REPRESENTMENT 				= 16;	//0x10;
-    const STATUS_REVERSED 								= 17;	//0x11;         // reversed status
-    const STATUS_PENDING_ANY 							= 18;	//0x12;         // dummy status
-    const STATUS_PROGRAMMED_RECURRENT_PAYMENT 			= 19;	//0x13;         // specific to recurrent card purchases
-    const STATUS_CANCELED_PROGRAMMED_RECURRENT_PAYMENT 	= 20;	//0x14;         // specific to cancelled recurrent card purchases
-    const STATUS_TRIAL_PENDING							= 21;	//0x15;         // specific to Model_Purchase_Sms_Online; wait for ACTON_TRIAL IPN to start trial period
-    const STATUS_TRIAL									= 22;	//0x16;         // specific to Model_Purchase_Sms_Online; trial period has started
-    const STATUS_EXPIRED								= 23;	//0x17;         // cancel a not payed purchase 
+    public function verifyIPN(): array
+    {
+        $outputData = [
+            'errorType'    => self::ERROR_TYPE_NONE,
+            'errorCode'    => null,
+            'errorMessage' => '',
+        ];
 
-
-    /**
-     * to Verify IPN
-     * @return 
-     *  - a Json
-     */
-    public function verifyIPN() {
-        /**
-        * Definition of default IPN response, 
-        * Value will change if there is any problem
-        */
-        $outputData = array(
-            'errorType'		=> self::ERROR_TYPE_NONE,
-            'errorCode' 	=> null,
-            'errorMessage'	=> ''
-        );
-
-        // fetch Verification-token from HTTP header.
-        $verificationToken = $this->getSpecificHeader('Verification-Token');
-
-        /**
-        * Analising the verification token
-        * Just to make sure if Type is JWT & Use right encoding/decoding algorithm 
-        * Assign following var 
-        *  - $headb64, 
-        *  - $bodyb64,
-        *  - $cryptob64
-        */
-        $tks = \explode('.', $verificationToken);
-        if (\count($tks) != 3) {
-            throw new \Exception('Wrong_Verification_Token');
-        }
-        list($headb64, $bodyb64, $cryptob64) = $tks;
-        $jwtHeader = json_decode(base64_decode(\strtr($headb64, '-_', '+/')));
-        
-        if($jwtHeader->typ !== 'JWT') {
-            throw new \Exception('Wrong_Token_Type'); 
-        }
-
-        /**
-        * Check if publicKeyStr is defined
-        */
-        if(isset($this->publicKeyStr) && !is_null($this->publicKeyStr)){
-            $publicKey = openssl_pkey_get_public($this->publicKeyStr);
-            if($publicKey === false) {
-                echo 'IPN__public key is not a valid public key' . PHP_EOL; 
-                exit;
-            }
-        } else {
-            echo "IPN__Public key missing" . PHP_EOL; 
-            exit;
-        }
-
-        /**
-        * Get raw data
-        */
-        $HTTP_RAW_POST_DATA = file_get_contents('php://input');
-
-
-        /**
-        * Verify the alg defined in header of JWT
-        * Just in case we set the default algorithm
-        * Default alg is RS512
-        */
-        if(!isset($this->alg) || $this->alg==null){
-            throw new \Exception('IDS_Service_IpnController__INVALID_JWT_ALG');
-        }
-        $jwtAlgorithm = !is_null($jwtHeader->alg) ? $jwtHeader->alg : $this->alg ;
-
-        
         try {
-            JWT::$timestamp = time() * 1000; 
-        
-           /**
-            * Decode from JWT v6 API
-            */
-            $objJwt = JWT::decode($verificationToken, new Key($publicKey, $jwtAlgorithm));
-        
-            if(strcmp($objJwt->iss, 'NETOPIA Payments') != 0)
-                {
-                throw new \Exception('IDS_Service_IpnController__E_VERIFICATION_FAILED_GENERAL');
-                }
-            
-            /**
-             * Check active posSignature 
-             * Check if given posSignature is in set of signature too
-             */
-            if(empty($objJwt->aud)){
-                throw new \Exception('IDS_Service_IpnController__JWT AUD is Empty');
-            }
+            $verificationToken = $this->extractVerificationToken();
+            $jwtParts = $this->parseJwtStructure($verificationToken);
+            $publicKey = $this->loadPublicKey();
+            $objJwt = $this->decodeAndVerifyJwt($verificationToken, $publicKey, $jwtParts['headerAlg']);
+            $this->validateJwtClaims($objJwt);
 
-            /**
-            * Check the type of JWT AUD, because the "POET" sent it in diffrent type
-            */
-            $actualJwtAud = null;
-            $jwtAudType = gettype($objJwt->aud);
-            switch ($jwtAudType) {
-                case 'array':
-                    $actualJwtAud = $objJwt->aud[0];
-                    break;
-                case 'string':
-                    $actualJwtAud = $objJwt->aud;
-                    break;
-                default:
-                    throw new \Exception('IDS_Service_IpnController__JWT AUD Type is unknown');
-                    break;
+            $payload = file_get_contents('php://input');
+            if ($payload === false) {
+                $payload = '';
             }
+            $this->verifyPayloadIntegrity($payload, $objJwt);
 
-            if( $actualJwtAud != $this->activeKey){
-                throw new \Exception('IDS_Service_IpnController__INVALID_SIGNATURE'.print_r($objJwt->aud, true).'__'.$this->activeKey);
-            }
-        
-            if(!in_array($actualJwtAud, $this->posSignatureSet,true)) {
-                throw new \Exception('IDS_Service_IpnController__INVALID_SIGNATURE_SET');
-            }
-            
-            if(!isset($this->hashMethod) || $this->hashMethod==null){
-                throw new \Exception('IDS_Service_IpnController__INVALID_HASH_METHOD');
-            }
-            
-            /**
-             * GET HTTP HEADER
-             */
-            $payload = $HTTP_RAW_POST_DATA;
-
-            /**
-             * Validate payload
-             * Sutable hash method is SHA512 
-             */
-            $payloadHash = base64_encode(hash ($this->hashMethod, $payload, true ));
-
-            /**
-             * Check IPN data integrity
-             */
-            if(strcmp($payloadHash, $objJwt->sub) != 0)
-                {
-                throw new \Exception('IDS_Service_IpnController__E_VERIFICATION_FAILED_TAINTED_PAYLOAD');
-                }
-        
-            try
-                {
-                $objIpn = json_decode($payload, false);
-                // Here, can make log for debugging.
-                }
-            catch(\Exception $e)
-                {
-                throw new \Exception('IDS_Service_IpnController__E_VERIFICATION_FAILED_PAYLOAD_FORMAT');
-                }
-
-            switch($objIpn->payment->status)
-                {
-                case self::STATUS_NEW:                          // Is new, Do nothing
-                    /**
-                     * Initial status for the payment
-                     */
-                break;
-                case self::STATUS_CHARGEBACK_INIT:              // chargeback initiat
-                case self::STATUS_CHARGEBACK_ACCEPT:            // chargeback acceptat
-                case self::STATUS_SCHEDULED:
-                case self::STATUS_CHARGEBACK_REPRESENTMENT:
-                case self::STATUS_REVERSED:
-                case self::STATUS_PENDING_ANY:
-                case self::STATUS_PROGRAMMED_RECURRENT_PAYMENT:
-                case self::STATUS_CANCELED_PROGRAMMED_RECURRENT_PAYMENT:
-                case self::STATUS_TRIAL_PENDING:                // specific to Model_Purchase_Sms_Online; wait for ACTON_TRIAL IPN to start trial period
-                case self::STATUS_TRIAL:                        // specific to Model_Purchase_Sms_Online; trial period has started
-                case self::STATUS_EXPIRED:                      // cancel a not payed purchase 
-                case self::STATUS_OPENED:                       // preauthorizate (card)
-                case self::STATUS_PENDING:
-                case self::STATUS_ERROR:                        // error
-                case self::STATUS_DECLINED:                     // declined
-                    /**
-                     * payment declined / has error / Not yet terminated...
-                     */
-                    $orderLog = 'payment declined'; // Here, can create a log for your order...
-                break;
-                case self::STATUS_FRAUD:                        // fraud
-                    /**
-                     * payment status is in fraud, reviw the payment
-                     */
-                    $orderLog = 'payment in reviwing'; // Here, can create a log for your order...
-                break;
-                case self::STATUS_3D_AUTH:
-                    /**
-                     * need Verify Auth
-                     */
-                    $orderLog = 'The payment needs to be signed by the user.'; // Here, can create a log for your order...
-                break;
-                case self::STATUS_PENDING_AUTH: // in asteptare de verificare pentru tranzactii autorizate
-                    /**
-                     * update payment status, last modified date&time in your system
-                     */
-                    $orderLog = 'update payment status, last modified date&time in your system'; // Here, can create a log for your order...;
-                break;
-                case self::STATUS_PAID: // capturate (card)
-                case self::STATUS_CONFIRMED:
-                    /**
-                     * payment was confirmed; deliver goods
-                     */
-                    $orderLog = 'payment was confirmed; deliver goods'; // Here, can create a log for your order...
-                break;
-                case self::STATUS_CREDIT: // capturate si apoi refund
-                    /**
-                     * a previously confirmed payment eas refinded; cancel goods delivery
-                     */
-                    $orderLog = 'a previously confirmed payment eas refinded; cancel goods delivery'; // Here, can create a log for your order...
-                break;
-                case self::STATUS_CANCELED: // void
-                    /**
-                     * payment was cancelled; do not deliver goods
-                     */
-                    $orderLog = 'payment was cancelled; do not deliver goods'; // Here, can create a log for your order...
-                break;
-            }            
-        } catch(\Exception $e)
-        {
-            $outputData['errorType']	= self::ERROR_TYPE_PERMANENT;
-            $outputData['errorCode']	= ($e->getCode() != 0) ? $e->getCode() : self::E_VERIFICATION_FAILED_GENERAL;
-            $outputData['errorMessage']	= $e->getMessage();
-            
-            $exceptionLog = [
-                            "IPN - Error"  =>  "Hash Data is not matched with subject",
-                            "ipnMsgError"  => 'ERROR_TYPE_PERMANENT -> E_VERIFICATION_FAILED_GENERAL'
-                            ];
-            // Here, can create a log for your debugging... 
+            $ipnData = $this->decodeIpnPayload($payload);
+            $this->processPaymentStatus($ipnData);
+        } catch (\Exception $e) {
+            $outputData['errorType']   = self::ERROR_TYPE_PERMANENT;
+            $outputData['errorCode']   = ($e->getCode() !== 0) ? $e->getCode() : self::E_VERIFICATION_FAILED_GENERAL;
+            $outputData['errorMessage'] = $e->getMessage();
         }
 
         return $outputData;
     }
 
     /**
-    *  get HTTP headers
-    */
-    private function getSpecificHeader(string $headerName): ?string {
-        // Attempt 1: Use getallheaders() if available.
+     * Extract the Verification-Token from HTTP headers.
+     *
+     * @throws VerificationFailedException If the token is missing or too large
+     */
+    private function extractVerificationToken(): string
+    {
+        $token = $this->getSpecificHeader('Verification-Token');
+
+        if ($token === null || $token === '') {
+            throw new VerificationFailedException('Missing Verification-Token header');
+        }
+
+        // Prevent DoS via oversized tokens (max 10KB)
+        if (strlen($token) > 10240) {
+            throw new VerificationFailedException('Verification-Token exceeds maximum allowed length');
+        }
+
+        return $token;
+    }
+
+    /**
+     * Parse JWT structure and validate format.
+     *
+     * @return array{headerAlg: string}
+     * @throws VerificationFailedException If JWT format is invalid
+     */
+    private function parseJwtStructure(string $token): array
+    {
+        $tks = explode('.', $token);
+        if (count($tks) !== 3) {
+            throw new VerificationFailedException('Invalid JWT format: expected 3 parts');
+        }
+
+        $headerJson = base64_decode(strtr($tks[0], '-_', '+/'), true);
+        if ($headerJson === false) {
+            throw new VerificationFailedException('Invalid JWT header encoding');
+        }
+
+        $jwtHeader = json_decode($headerJson);
+        if ($jwtHeader === null || json_last_error() !== JSON_ERROR_NONE) {
+            throw new VerificationFailedException('Invalid JWT header JSON');
+        }
+
+        if (!isset($jwtHeader->typ) || $jwtHeader->typ !== 'JWT') {
+            throw new VerificationFailedException('Invalid JWT type');
+        }
+
+        $headerAlg = $jwtHeader->alg ?? $this->alg;
+
+        return ['headerAlg' => (string) $headerAlg];
+    }
+
+    /**
+     * Load and validate the public key for signature verification.
+     *
+     * @return \OpenSSLAsymmetricKey|resource
+     * @throws VerificationFailedException If the public key is missing or invalid
+     */
+    private function loadPublicKey()
+    {
+        if (empty($this->publicKeyStr)) {
+            throw new VerificationFailedException('Public key is not configured');
+        }
+
+        $publicKey = openssl_pkey_get_public($this->publicKeyStr);
+        if ($publicKey === false) {
+            throw new VerificationFailedException('Invalid public key format');
+        }
+
+        return $publicKey;
+    }
+
+    /**
+     * Decode and verify JWT using firebase/php-jwt.
+     *
+     * @param \OpenSSLAsymmetricKey|resource $publicKey
+     * @throws VerificationFailedException If JWT decoding or verification fails
+     */
+    private function decodeAndVerifyJwt(string $token, $publicKey, string $algorithm): object
+    {
+        if (empty($this->alg)) {
+            throw new VerificationFailedException('JWT algorithm is not configured');
+        }
+
+        $jwtAlgorithm = !empty($algorithm) ? $algorithm : $this->alg;
+
+        JWT::$timestamp = time() * 1000;
+
+        try {
+            return JWT::decode($token, new Key($publicKey, $jwtAlgorithm));
+        } catch (\Exception $e) {
+            throw new VerificationFailedException('JWT decode failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Validate JWT claims (issuer, audience, signature set).
+     *
+     * @throws VerificationFailedException If any claim fails validation
+     */
+    private function validateJwtClaims(object $objJwt): void
+    {
+        // Verify issuer — use hash_equals to prevent timing attacks
+        if (!isset($objJwt->iss) || !hash_equals('NETOPIA Payments', (string) $objJwt->iss)) {
+            throw new VerificationFailedException('JWT issuer verification failed');
+        }
+
+        // Verify audience is present
+        if (empty($objJwt->aud)) {
+            throw new VerificationFailedException('JWT audience is empty');
+        }
+
+        // Normalize audience (may be string or array depending on NETOPIA response)
+        $actualAud = is_array($objJwt->aud)
+            ? ($objJwt->aud[0] ?? '')
+            : (string) $objJwt->aud;
+
+        // Verify audience matches active key — use hash_equals to prevent timing attacks
+        if (!hash_equals($this->activeKey, (string) $actualAud)) {
+            throw new VerificationFailedException('JWT audience does not match active key');
+        }
+
+        if (!in_array($actualAud, $this->posSignatureSet, true)) {
+            throw new VerificationFailedException('JWT audience not found in signature set');
+        }
+
+        if (empty($this->hashMethod)) {
+            throw new VerificationFailedException('Hash method is not configured');
+        }
+    }
+
+    /**
+     * Verify IPN payload integrity using the hash in the JWT subject claim.
+     *
+     * @throws VerificationFailedException If payload hash doesn't match
+     */
+    private function verifyPayloadIntegrity(string $payload, object $objJwt): void
+    {
+        $payloadHash = base64_encode(hash($this->hashMethod, $payload, true));
+
+        // Use hash_equals to prevent timing attacks
+        if (!isset($objJwt->sub) || !hash_equals((string) $objJwt->sub, $payloadHash)) {
+            throw new VerificationFailedException('Payload integrity check failed');
+        }
+    }
+
+    /**
+     * Decode the raw IPN payload from JSON.
+     *
+     * @throws VerificationFailedException If JSON is invalid
+     */
+    private function decodeIpnPayload(string $payload): object
+    {
+        $ipnData = json_decode($payload, false);
+
+        if ($ipnData === null && json_last_error() !== JSON_ERROR_NONE) {
+            throw new VerificationFailedException('Invalid IPN payload JSON');
+        }
+
+        /** @var object $ipnData */
+        return $ipnData;
+    }
+
+    /**
+     * Process the payment status from the IPN data.
+     *
+     * Override this method to implement custom status handling logic.
+     */
+    protected function processPaymentStatus(object $ipnData): void
+    {
+        // Status processing is intentionally a no-op in the SDK.
+        // Integrators should override this method or handle status
+        // in their own callback logic using the IPN status constants.
+    }
+
+    /**
+     * Get a specific HTTP header value (case-insensitive).
+     */
+    private function getSpecificHeader(string $headerName): ?string
+    {
         if (function_exists('getallheaders')) {
             $headers = getallheaders();
-            foreach ($headers as $name => $value) {
-                if (strcasecmp($name, $headerName) === 0) {
-                    return $value;
+            if ($headers !== false) {
+                foreach ($headers as $name => $value) {
+                    if (strcasecmp($name, $headerName) === 0) {
+                        return $value;
+                    }
                 }
             }
         }
 
-        // Attempt 2: to get value from http header.
         $serverKey = 'HTTP_' . str_replace('-', '_', strtoupper($headerName));
         if (isset($_SERVER[$serverKey])) {
-            return $_SERVER[$serverKey];
+            return (string) $_SERVER[$serverKey];
         }
-        
+
         return null;
     }
-
-    
-
-    
 }
