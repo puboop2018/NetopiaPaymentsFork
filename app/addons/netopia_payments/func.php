@@ -785,8 +785,7 @@ function fn_netopia_handle_ipn(): void
  */
 function fn_netopia_handle_3ds_return(): void
 {
-    $order_id   = (int) (Tygh::$app['session']['netopia_order_id'] ?? 0);
-    $payment_id = (int) (Tygh::$app['session']['netopia_payment_id'] ?? 0);
+    $order_id = (int) (Tygh::$app['session']['netopia_order_id'] ?? 0);
 
     if (empty($order_id)) {
         fn_set_notification('E', __('error'), __('netopia_3ds_session_expired'));

@@ -70,9 +70,10 @@ class Request extends Start
         if (is_string($threeDSecureData)) {
             $threeDSecureData = json_decode($threeDSecureData);
         }
-        if (is_object($threeDSecureData)) {
-            $threeDSecureData->IP_ADDRESS = $clientIp !== '' ? $clientIp : '127.0.0.1';
+        if (!is_object($threeDSecureData)) {
+            $threeDSecureData = new \stdClass();
         }
+        $threeDSecureData->IP_ADDRESS = $clientIp !== '' ? $clientIp : '127.0.0.1';
 
         return [
             'options' => [

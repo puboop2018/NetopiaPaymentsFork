@@ -101,6 +101,26 @@ class RequestTest extends TestCase
         $this->assertSame('127.0.0.1', $result['data']->IP_ADDRESS);
     }
 
+    public function testSetPaymentForLinkHandlesNullInput(): void
+    {
+        $request = new Request();
+
+        $result = $request->setPaymentForLink(null, '10.0.0.1');
+
+        $this->assertIsObject($result['data']);
+        $this->assertSame('10.0.0.1', $result['data']->IP_ADDRESS);
+    }
+
+    public function testSetPaymentForLinkHandlesInvalidJson(): void
+    {
+        $request = new Request();
+
+        $result = $request->setPaymentForLink('not-valid-json', '10.0.0.1');
+
+        $this->assertIsObject($result['data']);
+        $this->assertSame('10.0.0.1', $result['data']->IP_ADDRESS);
+    }
+
     public function testSetOrderReturnsExpectedStructure(): void
     {
         $request = new Request();
