@@ -3,9 +3,9 @@ The NETOPIA Payment PHP library provides easy access to the NETOPIA Payments API
 applications written in the PHP language.
 
 ## Compatible
-PHP 7.4.0 - 8.1.x
+PHP 8.1+
 
-## API Documention
+## API Documentation
 * https://netopia-system.stoplight.io/docs/payments-api/6530c434c2f93-netopia-payments-merchant-api
 
 ## API Specification
@@ -47,7 +47,7 @@ Use this endpoint to start a payment. Based on the response to this call the pro
 * #### **2) Make start json request**
 
     ```php
-        $request->setRequest($configData, $cardData, $orderData, $threeDSecusreData);
+        $request->setRequest($configData, $cardData, $orderData, $threeDSecureData);
     ```
     * **Sample JSON:**
 

@@ -12,8 +12,12 @@ use Netopia\Payment2\Exception\VerificationFailedException;
  * IPN (Instant Payment Notification) handler for NETOPIA Payments.
  *
  * Verifies JWT signatures on IPN callbacks and decodes payment status.
+ *
+ * Note: This class extends BaseHttpClient (not Request) because IPN verification
+ * does not need payment request building capabilities. This follows the
+ * Interface Segregation Principle.
  */
-class IPN extends Request
+class IPN extends BaseHttpClient
 {
     public string $activeKey = '';
 
@@ -23,6 +27,9 @@ class IPN extends Request
     public string $hashMethod = '';
     public string $alg = '';
     public string $publicKeyStr = '';
+
+    /** @var array<string> Allowed JWT algorithms (RSA only — never allow 'none' or HMAC). */
+    private const ALLOWED_ALGORITHMS = ['RS256', 'RS384', 'RS512'];
 
     // Error code definitions
     public const E_VERIFICATION_FAILED_GENERAL         = 0x10000101;
@@ -65,9 +72,12 @@ class IPN extends Request
     /**
      * Verify an IPN callback from NETOPIA.
      *
+     * @param string|null $rawPayload Raw POST body. If null, reads from php://input.
+     *                                Pass this explicitly to avoid double-reading php://input
+     *                                and to make the method testable outside HTTP context.
      * @return array{errorType: int, errorCode: int|null, errorMessage: string}
      */
-    public function verifyIPN(): array
+    public function verifyIPN(?string $rawPayload = null): array
     {
         $outputData = [
             'errorType'    => self::ERROR_TYPE_NONE,
@@ -82,13 +92,15 @@ class IPN extends Request
             $objJwt = $this->decodeAndVerifyJwt($verificationToken, $publicKey, $jwtParts['headerAlg']);
             $this->validateJwtClaims($objJwt);
 
-            $payload = file_get_contents('php://input');
-            if ($payload === false) {
-                $payload = '';
+            if ($rawPayload === null) {
+                $rawPayload = file_get_contents('php://input');
+                if ($rawPayload === false) {
+                    $rawPayload = '';
+                }
             }
-            $this->verifyPayloadIntegrity($payload, $objJwt);
+            $this->verifyPayloadIntegrity($rawPayload, $objJwt);
 
-            $ipnData = $this->decodeIpnPayload($payload);
+            $ipnData = $this->decodeIpnPayload($rawPayload);
             $this->processPaymentStatus($ipnData);
         } catch (\Exception $e) {
             $outputData['errorType']   = self::ERROR_TYPE_PERMANENT;
@@ -185,6 +197,11 @@ class IPN extends Request
         }
 
         $jwtAlgorithm = !empty($algorithm) ? $algorithm : $this->alg;
+
+        // Whitelist: only allow RSA algorithms to prevent algorithm substitution attacks
+        if (!in_array($jwtAlgorithm, self::ALLOWED_ALGORITHMS, true)) {
+            throw new VerificationFailedException('JWT algorithm not allowed: ' . $jwtAlgorithm);
+        }
 
         JWT::$timestamp = time() * 1000;
 

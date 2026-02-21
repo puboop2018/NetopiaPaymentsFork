@@ -16,7 +16,7 @@ if (!defined('BOOTSTRAP')) {
 }
 
 if ($mode === 'details') {
-    $order_id = (int) ($_GET['order_id'] ?? $_REQUEST['order_id'] ?? 0);
+    $order_id = (int) ($_GET['order_id'] ?? 0);
     if (empty($order_id)) {
         return;
     }

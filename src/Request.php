@@ -33,13 +33,13 @@ class Request extends Start
      * @param string               $threeDSecureData JSON-encoded 3DS browser data
      * @return array<string, mixed>
      */
-    public function setPayment(array $cardData, string $threeDSecureData): array
+    public function setPayment(array $cardData, string $threeDSecureData, string $clientIp = ''): array
     {
         $decoded = json_decode($threeDSecureData);
         if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
             $decoded = new \stdClass();
         }
-        $decoded->IP_ADDRESS = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $decoded->IP_ADDRESS = $clientIp !== '' ? $clientIp : '127.0.0.1';
 
         return [
             'options' => [
@@ -65,13 +65,13 @@ class Request extends Start
      * @param mixed $threeDSecureData JSON string or object of 3DS browser data
      * @return array<string, mixed>
      */
-    public function setPaymentForLink($threeDSecureData = null): array
+    public function setPaymentForLink($threeDSecureData = null, string $clientIp = ''): array
     {
         if (is_string($threeDSecureData)) {
             $threeDSecureData = json_decode($threeDSecureData);
         }
         if (is_object($threeDSecureData)) {
-            $threeDSecureData->IP_ADDRESS = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+            $threeDSecureData->IP_ADDRESS = $clientIp !== '' ? $clientIp : '127.0.0.1';
         }
 
         return [
@@ -98,11 +98,11 @@ class Request extends Start
      * @param object               $orderData
      * @param mixed                $threeDSecureData
      */
-    public function setPaymentLinkRequest(array $configData, object $orderData, $threeDSecureData = null): string
+    public function setPaymentLinkRequest(array $configData, object $orderData, $threeDSecureData = null, string $clientIp = ''): string
     {
         $startArr = [
             'config'  => $this->setConfig($configData),
-            'payment' => $this->setPaymentForLink($threeDSecureData),
+            'payment' => $this->setPaymentForLink($threeDSecureData, $clientIp),
             'order'   => $this->setOrder($orderData),
         ];
 
@@ -165,11 +165,11 @@ class Request extends Start
      * @param string|null          $threeDSecureData JSON-encoded 3DS data
      * @return string JSON-encoded request body
      */
-    public function setRequest(array $configData, array $cardData, object $orderData, ?string $threeDSecureData = null): string
+    public function setRequest(array $configData, array $cardData, object $orderData, ?string $threeDSecureData = null, string $clientIp = ''): string
     {
         $startArr = [
             'config'  => $this->setConfig($configData),
-            'payment' => $this->setPayment($cardData, $threeDSecureData ?? '{}'),
+            'payment' => $this->setPayment($cardData, $threeDSecureData ?? '{}', $clientIp),
             'order'   => $this->setOrder($orderData),
         ];
 
