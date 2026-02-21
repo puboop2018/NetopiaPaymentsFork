@@ -170,6 +170,9 @@ msgstr "Key file is too large. Maximum size is 64KB."
 msgid "netopia_key_empty"
 msgstr "Key file appears to be empty."
 
+msgid "netopia_key_delete_failed"
+msgstr "Failed to delete the key file. Please check file permissions."
+
 msgid "netopia_configuration_error"
 msgstr "NETOPIA Payments is not properly configured. Please contact the store administrator."
 

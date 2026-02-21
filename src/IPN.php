@@ -31,14 +31,7 @@ class IPN extends BaseHttpClient
     /** @var array<string> Allowed JWT algorithms (RSA only — never allow 'none' or HMAC). */
     private const ALLOWED_ALGORITHMS = ['RS256', 'RS384', 'RS512'];
 
-    // Error code definitions
-    public const E_VERIFICATION_FAILED_GENERAL         = 0x10000101;
-    public const E_VERIFICATION_FAILED_SIGNATURE        = 0x10000102;
-    public const E_VERIFICATION_FAILED_NBF_IAT          = 0x10000103;
-    public const E_VERIFICATION_FAILED_EXPIRED          = 0x10000104;
-    public const E_VERIFICATION_FAILED_AUDIENCE         = 0x10000105;
-    public const E_VERIFICATION_FAILED_TAINTED_PAYLOAD  = 0x10000106;
-    public const E_VERIFICATION_FAILED_PAYLOAD_FORMAT   = 0x10000107;
+    public const E_VERIFICATION_FAILED_GENERAL = 0x10000101;
 
     public const ERROR_TYPE_NONE      = 0x00;
     public const ERROR_TYPE_TEMPORARY = 0x01;
@@ -167,10 +160,9 @@ class IPN extends BaseHttpClient
     /**
      * Load and validate the public key for signature verification.
      *
-     * @return \OpenSSLAsymmetricKey|resource
      * @throws VerificationFailedException If the public key is missing or invalid
      */
-    private function loadPublicKey()
+    private function loadPublicKey(): \OpenSSLAsymmetricKey
     {
         if (empty($this->publicKeyStr)) {
             throw new VerificationFailedException('Public key is not configured');
@@ -187,10 +179,9 @@ class IPN extends BaseHttpClient
     /**
      * Decode and verify JWT using firebase/php-jwt.
      *
-     * @param \OpenSSLAsymmetricKey|resource $publicKey
      * @throws VerificationFailedException If JWT decoding or verification fails
      */
-    private function decodeAndVerifyJwt(string $token, $publicKey, string $algorithm): object
+    private function decodeAndVerifyJwt(string $token, \OpenSSLAsymmetricKey $publicKey, string $algorithm): object
     {
         if (empty($this->alg)) {
             throw new VerificationFailedException('JWT algorithm is not configured');
@@ -272,11 +263,14 @@ class IPN extends BaseHttpClient
     {
         $ipnData = json_decode($payload, false);
 
-        if ($ipnData === null && json_last_error() !== JSON_ERROR_NONE) {
+        if (json_last_error() !== JSON_ERROR_NONE) {
             throw new VerificationFailedException('Invalid IPN payload JSON');
         }
 
-        /** @var object $ipnData */
+        if (!is_object($ipnData)) {
+            throw new VerificationFailedException('IPN payload must be a JSON object');
+        }
+
         return $ipnData;
     }
 

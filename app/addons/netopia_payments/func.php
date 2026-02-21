@@ -695,6 +695,9 @@ function fn_netopia_handle_ipn(): void
 {
     // Read raw POST body once — passed to verify to avoid double-reading php://input
     $raw_post = file_get_contents('php://input');
+    if ($raw_post === false) {
+        $raw_post = '';
+    }
     $ipn_raw  = json_decode($raw_post, true);
 
     if (empty($ipn_raw)) {
@@ -930,10 +933,13 @@ function fn_netopia_verify_ipn(string $public_key_pem, string $pos_signature, st
     }
 
     $alg = $header['alg'] ?? 'RS512';
+    $allowed_algorithms = ['RS256', 'RS384', 'RS512'];
+    if (!in_array($alg, $allowed_algorithms, true)) {
+        return ['verified' => false, 'payload' => null, 'error' => 'JWT algorithm not allowed: ' . $alg];
+    }
     $openssl_alg = match ($alg) {
         'RS256' => OPENSSL_ALGO_SHA256,
         'RS384' => OPENSSL_ALGO_SHA384,
-        'RS512' => OPENSSL_ALGO_SHA512,
         default => OPENSSL_ALGO_SHA512,
     };
 

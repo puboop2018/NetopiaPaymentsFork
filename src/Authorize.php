@@ -8,7 +8,6 @@ use Netopia\Payment2\Exception\InvalidParameterException;
 
 class Authorize extends Start
 {
-    public string $backUrl = '';
     public string $paReq = '';
     public string $bankUrl = '';
 

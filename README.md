@@ -42,7 +42,7 @@ Use this endpoint to start a payment. Based on the response to this call the pro
         $request->apiKey        = 'ApiKey_GENERATE-YOUR-KEY-FROM-MobilPay-AND-USE-IT-HEAR';   // Your API key hear
         $request->isLive        = false;                                                      // false for SANDBOX & true for LIVE
         $request->notifyUrl     = 'http://your-domain.com/ipn.php';                           // Path of your IPN
-        $request->redirectUrl   = null;
+        $request->redirectUrl   = '';
     ```
 * #### **2) Make start json request**
 
