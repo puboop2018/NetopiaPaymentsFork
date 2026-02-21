@@ -684,6 +684,25 @@ function fn_netopia_sanitize_ip(string $ip): string
     return $filtered !== false ? $filtered : '127.0.0.1';
 }
 
+/**
+ * Validate that a URL returned by the NETOPIA API is a safe HTTPS URL.
+ *
+ * Prevents redirect/form-post to non-HTTPS URLs in case of API response tampering.
+ */
+function fn_netopia_validate_url(string $url): bool
+{
+    if (empty($url)) {
+        return false;
+    }
+
+    $parsed = parse_url($url);
+    if ($parsed === false || empty($parsed['scheme']) || empty($parsed['host'])) {
+        return false;
+    }
+
+    return strtolower($parsed['scheme']) === 'https';
+}
+
 // ---------------------------------------------------------------------------
 // Callback handlers (IPN & 3DS return)
 // ---------------------------------------------------------------------------
@@ -805,6 +824,16 @@ function fn_netopia_handle_3ds_return(): void
 
     $processor_data = fn_get_payment_method_data($order_info['payment_id']);
     $params = $processor_data['processor_params'] ?? [];
+
+    if (empty($params['api_key'])) {
+        $pp_response = [
+            'order_status' => 'F',
+            'reason_text'  => 'NETOPIA processor not configured (missing API key).',
+        ];
+        fn_finish_payment($order_id, $pp_response);
+        fn_order_placement_routines('route', $order_id);
+        return;
+    }
 
     $pa_res = $_POST['paRes'] ?? '';
 
@@ -1203,7 +1232,7 @@ function fn_netopia_generate_payment_link(int $order_id): array
     $payment_url = (string) ($payment_data['paymentURL'] ?? '');
     $ntp_id = (string) ($payment_data['ntpID'] ?? '');
 
-    if ($error_code === NETOPIA_ERROR_CODE_HOSTED_PAGE && !empty($payment_url)) {
+    if ($error_code === NETOPIA_ERROR_CODE_HOSTED_PAGE && !empty($payment_url) && fn_netopia_validate_url($payment_url)) {
         fn_update_order_payment_info($order_id, [
             'netopia_ntp_id'          => $ntp_id,
             'netopia_payment_link'    => $payment_url,

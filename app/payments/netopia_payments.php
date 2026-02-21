@@ -126,10 +126,10 @@ if ($error_code === NETOPIA_ERROR_CODE_3DS && $ntp_status === NETOPIA_STATUS_3DS
     $pa_req     = (string) ($customer_action['formData']['paReq'] ?? '');
     $bank_url   = (string) ($customer_action['url'] ?? '');
 
-    if (empty($bank_url) || empty($pa_req)) {
+    if (empty($bank_url) || empty($pa_req) || !fn_netopia_validate_url($bank_url)) {
         $pp_response = [
             'order_status' => 'F',
-            'reason_text'  => 'NETOPIA: 3D Secure data incomplete.',
+            'reason_text'  => 'NETOPIA: 3D Secure data incomplete or invalid bank URL.',
         ];
         return;
     }
@@ -159,7 +159,7 @@ if ($error_code === NETOPIA_ERROR_CODE_3DS && $ntp_status === NETOPIA_STATUS_3DS
     fn_create_payment_form($bank_url, $form_data, 'NETOPIA 3D Secure', false);
     exit;
 
-} elseif ($error_code === NETOPIA_ERROR_CODE_HOSTED_PAGE && !empty($payment_data['paymentURL'])) {
+} elseif ($error_code === NETOPIA_ERROR_CODE_HOSTED_PAGE && !empty($payment_data['paymentURL']) && fn_netopia_validate_url((string) $payment_data['paymentURL'])) {
     // -------------------------------------------------------------------
     // Hosted Payment Page — redirect customer to NETOPIA payment page
     // -------------------------------------------------------------------
