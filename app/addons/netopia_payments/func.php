@@ -1275,35 +1275,37 @@ function fn_netopia_send_payment_link_email(int $order_id, string $payment_url):
     $currency = $order_info['secondary_currency'] ?? CART_PRIMARY_CURRENCY;
 
     $subject = __('netopia_payment_link_email_subject', ['[order_id]' => $order_id]);
-    $body = __('netopia_payment_link_email_body', [
-        '[customer_name]' => $customer_name,
-        '[order_id]'      => $order_id,
-        '[amount]'        => $amount . ' ' . $currency,
-        '[payment_url]'   => $payment_url,
-        '[company_name]'  => $company_name,
-    ]);
 
     $mailer = Tygh::$app['mailer'];
     $result = $mailer->send([
         'to'      => $order_info['email'],
         'from'    => 'default_company_orders_department',
         'data'    => [
-            'subject'     => $subject,
-            'body'        => nl2br($body),
-            'order_info'  => $order_info,
-            'payment_url' => $payment_url,
+            'customer_name' => $customer_name,
+            'order_id'      => $order_id,
+            'amount'        => $amount . ' ' . $currency,
+            'payment_url'   => $payment_url,
+            'company_name'  => $company_name,
+            'order_info'    => $order_info,
         ],
         'template_code' => 'netopia_payment_link',
         'tpl'     => 'addons/netopia_payments/payment_link_email.tpl',
     ], 'A');
 
     if (!$result) {
+        $body = __('netopia_payment_link_email_body', [
+            '[customer_name]' => $customer_name,
+            '[order_id]'      => $order_id,
+            '[amount]'        => $amount . ' ' . $currency,
+            '[payment_url]'   => $payment_url,
+            '[company_name]'  => $company_name,
+        ]);
         $result = $mailer->send([
             'to'      => $order_info['email'],
             'from'    => 'default_company_orders_department',
             'data'    => [],
             'subject' => $subject,
-            'body'    => nl2br($body),
+            'body'    => $body,
         ], 'A');
     }
 
