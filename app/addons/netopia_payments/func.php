@@ -568,7 +568,7 @@ function fn_netopia_build_order_section(
             'country'    => $billing_country,
             'state'      => (string) ($order_info['b_state_descr'] ?? $order_info['b_state'] ?? ''),
             'postalCode' => (string) ($order_info['b_zipcode'] ?? ''),
-            'details'    => (string) ($order_info['b_address'] ?? '') . ' ' . ($order_info['b_address_2'] ?? ''),
+            'details'    => trim(($order_info['b_address'] ?? '') . ' ' . ($order_info['b_address_2'] ?? '')),
         ],
         'shipping' => [
             'email'      => (string) ($order_info['email'] ?? ''),
@@ -579,7 +579,7 @@ function fn_netopia_build_order_section(
             'country'    => $shipping_country,
             'state'      => (string) ($order_info['s_state_descr'] ?? $order_info['s_state'] ?? $order_info['b_state'] ?? ''),
             'postalCode' => (string) ($order_info['s_zipcode'] ?? $order_info['b_zipcode'] ?? ''),
-            'details'    => (string) ($order_info['s_address'] ?? $order_info['b_address'] ?? '') . ' ' . ($order_info['s_address_2'] ?? ''),
+            'details'    => trim(($order_info['s_address'] ?? $order_info['b_address'] ?? '') . ' ' . ($order_info['s_address_2'] ?? $order_info['b_address_2'] ?? '')),
         ],
         'products'     => fn_netopia_build_product_list($order_info, $amount),
         'installments' => fn_netopia_build_installments($installments),

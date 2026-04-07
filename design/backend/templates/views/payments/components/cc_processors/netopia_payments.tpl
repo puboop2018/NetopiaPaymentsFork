@@ -35,7 +35,7 @@
 <div class="control-group">
     <label class="control-label" for="netopia_pos_signature">{__("netopia_pos_signature")}:</label>
     <div class="controls">
-        <input type="text" name="payment_data[processor_params][pos_signature]" id="netopia_pos_signature" value="{$processor_params.pos_signature}" size="60" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" />
+        <input type="text" name="payment_data[processor_params][pos_signature]" id="netopia_pos_signature" value="{$processor_params.pos_signature|escape:"html"}" size="60" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" />
         <p class="muted description">{__("netopia_pos_signature_description")}</p>
     </div>
 </div>
@@ -44,7 +44,7 @@
 <div class="control-group">
     <label class="control-label" for="netopia_api_key">{__("netopia_api_key")}:</label>
     <div class="controls">
-        <input type="text" name="payment_data[processor_params][api_key]" id="netopia_api_key" value="{$processor_params.api_key}" size="60" placeholder="ApiKey_XXXXXXXX" />
+        <input type="text" name="payment_data[processor_params][api_key]" id="netopia_api_key" value="{$processor_params.api_key|escape:"html"}" size="60" placeholder="ApiKey_XXXXXXXX" />
         <p class="muted description">{__("netopia_api_key_description")}</p>
     </div>
 </div>
@@ -56,7 +56,7 @@
         <select name="payment_data[processor_params][currency]" id="netopia_currency">
             <option value="order_currency" {if $processor_params.currency == "order_currency"}selected="selected"{/if}>{__("netopia_order_currency")}</option>
             {foreach from=$currencies item="currency"}
-                <option value="{$currency.currency_code}" {if $processor_params.currency == $currency.currency_code}selected="selected"{/if}>{$currency.currency_code} - {$currency.description}</option>
+                <option value="{$currency.currency_code|escape:"html"}" {if $processor_params.currency == $currency.currency_code}selected="selected"{/if}>{$currency.currency_code|escape:"html"} - {$currency.description|escape:"html"}</option>
             {/foreach}
         </select>
         <p class="muted description">{__("netopia_currency_description")}</p>
@@ -184,7 +184,7 @@
             {if $processor_params.sandbox_public_key_file}
                 <div class="well well-small" style="margin-bottom: 8px;">
                     <i class="icon-file"></i>
-                    {__("netopia_current_file")}: <strong>{$processor_params.sandbox_public_key_file}</strong>
+                    {__("netopia_current_file")}: <strong>{$processor_params.sandbox_public_key_file|escape:"html"}</strong>
                     &nbsp;
                     <label style="display:inline; cursor:pointer;">
                         <input type="checkbox" name="delete_netopia_sandbox_public_key" value="1" />
@@ -193,7 +193,7 @@
                 </div>
             {/if}
             <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
-            <textarea name="payment_data[processor_params][sandbox_public_key]" id="netopia_sandbox_public_key" cols="65" rows="6" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----">{$processor_params.sandbox_public_key}</textarea>
+            <textarea name="payment_data[processor_params][sandbox_public_key]" id="netopia_sandbox_public_key" cols="65" rows="6" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----">{$processor_params.sandbox_public_key|escape:"html"}</textarea>
             <p class="muted description">{__("netopia_sandbox_public_key_description")}</p>
         </div>
     </div>
@@ -211,7 +211,7 @@
             {if $processor_params.sandbox_private_key_file}
                 <div class="well well-small" style="margin-bottom: 8px;">
                     <i class="icon-file"></i>
-                    {__("netopia_current_file")}: <strong>{$processor_params.sandbox_private_key_file}</strong>
+                    {__("netopia_current_file")}: <strong>{$processor_params.sandbox_private_key_file|escape:"html"}</strong>
                     &nbsp;
                     <label style="display:inline; cursor:pointer;">
                         <input type="checkbox" name="delete_netopia_sandbox_private_key" value="1" />
@@ -220,7 +220,7 @@
                 </div>
             {/if}
             <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
-            <textarea name="payment_data[processor_params][sandbox_private_key]" id="netopia_sandbox_private_key" cols="65" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----">{$processor_params.sandbox_private_key}</textarea>
+            <textarea name="payment_data[processor_params][sandbox_private_key]" id="netopia_sandbox_private_key" cols="65" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----">{$processor_params.sandbox_private_key|escape:"html"}</textarea>
             <p class="muted description">{__("netopia_sandbox_private_key_description")}</p>
         </div>
     </div>
@@ -247,7 +247,7 @@
             {if $processor_params.live_public_key_file}
                 <div class="well well-small" style="margin-bottom: 8px;">
                     <i class="icon-file"></i>
-                    {__("netopia_current_file")}: <strong>{$processor_params.live_public_key_file}</strong>
+                    {__("netopia_current_file")}: <strong>{$processor_params.live_public_key_file|escape:"html"}</strong>
                     &nbsp;
                     <label style="display:inline; cursor:pointer;">
                         <input type="checkbox" name="delete_netopia_live_public_key" value="1" />
@@ -256,7 +256,7 @@
                 </div>
             {/if}
             <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
-            <textarea name="payment_data[processor_params][live_public_key]" id="netopia_live_public_key" cols="65" rows="6" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----">{$processor_params.live_public_key}</textarea>
+            <textarea name="payment_data[processor_params][live_public_key]" id="netopia_live_public_key" cols="65" rows="6" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----">{$processor_params.live_public_key|escape:"html"}</textarea>
             <p class="muted description">{__("netopia_live_public_key_description")}</p>
         </div>
     </div>
@@ -274,7 +274,7 @@
             {if $processor_params.live_private_key_file}
                 <div class="well well-small" style="margin-bottom: 8px;">
                     <i class="icon-file"></i>
-                    {__("netopia_current_file")}: <strong>{$processor_params.live_private_key_file}</strong>
+                    {__("netopia_current_file")}: <strong>{$processor_params.live_private_key_file|escape:"html"}</strong>
                     &nbsp;
                     <label style="display:inline; cursor:pointer;">
                         <input type="checkbox" name="delete_netopia_live_private_key" value="1" />
@@ -283,7 +283,7 @@
                 </div>
             {/if}
             <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
-            <textarea name="payment_data[processor_params][live_private_key]" id="netopia_live_private_key" cols="65" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----">{$processor_params.live_private_key}</textarea>
+            <textarea name="payment_data[processor_params][live_private_key]" id="netopia_live_private_key" cols="65" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----">{$processor_params.live_private_key|escape:"html"}</textarea>
             <p class="muted description">{__("netopia_live_private_key_description")}</p>
         </div>
     </div>

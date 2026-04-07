@@ -44,7 +44,7 @@
     <table class="table table-condensed" style="margin-bottom: 0;">
         <tr>
             <td style="width: 180px;"><strong>{__("netopia_ntp_id_label")}:</strong></td>
-            <td><code>{$order_info.payment_info.netopia_ntp_id}</code></td>
+            <td><code>{$order_info.payment_info.netopia_ntp_id|escape:"html"}</code></td>
         </tr>
         {if $order_info.payment_info.netopia_status}
         <tr>
@@ -63,19 +63,19 @@
         {if $order_info.payment_info.netopia_amount}
         <tr>
             <td><strong>{__("netopia_amount_label")}:</strong></td>
-            <td>{$order_info.payment_info.netopia_amount}</td>
+            <td>{$order_info.payment_info.netopia_amount|escape:"html"}</td>
         </tr>
         {/if}
         {if $order_info.payment_info.netopia_error_code}
         <tr>
             <td><strong>{__("netopia_error_code_label")}:</strong></td>
-            <td>{$order_info.payment_info.netopia_error_code}</td>
+            <td>{$order_info.payment_info.netopia_error_code|escape:"html"}</td>
         </tr>
         {/if}
         {if $order_info.payment_info.netopia_error_message}
         <tr>
             <td><strong>{__("netopia_error_message_label")}:</strong></td>
-            <td>{$order_info.payment_info.netopia_error_message}</td>
+            <td>{$order_info.payment_info.netopia_error_message|escape:"html"}</td>
         </tr>
         {/if}
     </table>
@@ -86,14 +86,14 @@
 {if $order_info.payment_info.netopia_payment_link}
 <div class="well well-small" style="margin-top: 10px;">
     <strong><i class="icon-link"></i> {__("netopia_payment_link_label")}:</strong><br/>
-    <a href="{$order_info.payment_info.netopia_payment_link}" target="_blank" rel="noopener">
-        {$order_info.payment_info.netopia_payment_link}
+    <a href="{$order_info.payment_info.netopia_payment_link|escape:"html"}" target="_blank" rel="noopener">
+        {$order_info.payment_info.netopia_payment_link|escape:"html"}
     </a>
     <br/>
-    <span class="muted">{__("netopia_payment_link_generated_at")}: {$order_info.payment_info.netopia_payment_link_at}</span>
+    <span class="muted">{__("netopia_payment_link_generated_at")}: {$order_info.payment_info.netopia_payment_link_at|escape:"html"}</span>
     {if $order_info.payment_info.netopia_payment_link_email_sent}
         <br/>
-        <span class="muted">{__("netopia_payment_link_emailed_to")}: {$order_info.payment_info.netopia_payment_link_email_sent} ({$order_info.payment_info.netopia_payment_link_email_sent_at})</span>
+        <span class="muted">{__("netopia_payment_link_emailed_to")}: {$order_info.payment_info.netopia_payment_link_email_sent|escape:"html"} ({$order_info.payment_info.netopia_payment_link_email_sent_at|escape:"html"})</span>
     {/if}
 </div>
 {/if}
