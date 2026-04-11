@@ -1,0 +1,260 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+msgid "netopia_payments"
+msgstr "NETOPIA Payments"
+
+msgid "netopia_payments_description"
+msgstr "Integrate NETOPIA Payments gateway for online card payments with 3D Secure support and installments."
+
+msgid "netopia_mode"
+msgstr "Mode"
+
+msgid "netopia_sandbox"
+msgstr "Sandbox (Test)"
+
+msgid "netopia_live"
+msgstr "Live (Production)"
+
+msgid "netopia_pos_signature"
+msgstr "POS Signature"
+
+msgid "netopia_pos_signature_description"
+msgstr "Your NETOPIA POS Signature ID (format: XXXX-XXXX-XXXX-XXXX-XXXX). Found in your NETOPIA merchant dashboard."
+
+msgid "netopia_api_key"
+msgstr "API Key"
+
+msgid "netopia_api_key_description"
+msgstr "Your NETOPIA API Key generated from the NETOPIA merchant dashboard."
+
+msgid "netopia_currency"
+msgstr "Payment Currency"
+
+msgid "netopia_order_currency"
+msgstr "-- Use Order Currency --"
+
+msgid "netopia_currency_description"
+msgstr "Select which currency to send to NETOPIA. Choose 'Use Order Currency' to use the currency from each order, or select a specific currency."
+
+msgid "netopia_allow_installments"
+msgstr "Allow Installments"
+
+msgid "netopia_max_installments"
+msgstr "Maximum Installments"
+
+msgid "netopia_max_installments_description"
+msgstr "Maximum number of installments available to the customer (2-36). Only applies when installments are enabled."
+
+msgid "netopia_status_mapping_section"
+msgstr "Order Status Mapping"
+
+msgid "netopia_status_mapping_description"
+msgstr "Map each NETOPIA payment status to a CS-Cart order status. The defaults work for most stores."
+
+msgid "netopia_status_group_success"
+msgstr "Success Statuses"
+
+msgid "netopia_status_group_pending"
+msgstr "Pending / In-Progress Statuses"
+
+msgid "netopia_status_group_cancel"
+msgstr "Cancellation / Refund Statuses"
+
+msgid "netopia_status_group_fail"
+msgstr "Failure Statuses"
+
+msgid "netopia_ntp_status_3"
+msgstr "Paid"
+
+msgid "netopia_ntp_status_5"
+msgstr "Confirmed"
+
+msgid "netopia_ntp_status_1"
+msgstr "New"
+
+msgid "netopia_ntp_status_2"
+msgstr "Opened"
+
+msgid "netopia_ntp_status_6"
+msgstr "Pending"
+
+msgid "netopia_ntp_status_14"
+msgstr "Pending Auth"
+
+msgid "netopia_ntp_status_15"
+msgstr "3D Secure"
+
+msgid "netopia_ntp_status_18"
+msgstr "Pending (Any)"
+
+msgid "netopia_ntp_status_4"
+msgstr "Canceled"
+
+msgid "netopia_ntp_status_8"
+msgstr "Refund / Credit"
+
+msgid "netopia_ntp_status_17"
+msgstr "Reversed"
+
+msgid "netopia_ntp_status_11"
+msgstr "Error"
+
+msgid "netopia_ntp_status_12"
+msgstr "Declined"
+
+msgid "netopia_ntp_status_13"
+msgstr "Fraud"
+
+msgid "netopia_ntp_status_23"
+msgstr "Expired"
+
+msgid "netopia_sandbox_keys_section"
+msgstr "Sandbox Certificates (Test Environment)"
+
+msgid "netopia_sandbox_public_key"
+msgstr "Sandbox Public Key"
+
+msgid "netopia_sandbox_public_key_description"
+msgstr "NETOPIA sandbox public key (e.g. sandbox.XXXX-XXXX.public.cer). Used for IPN verification in test mode."
+
+msgid "netopia_sandbox_private_key"
+msgstr "Sandbox Private Key"
+
+msgid "netopia_sandbox_private_key_description"
+msgstr "NETOPIA sandbox private key (e.g. sandbox.XXXX-XXXX.private.key). Used for payment signing in test mode."
+
+msgid "netopia_live_keys_section"
+msgstr "Live Certificates (Production Environment)"
+
+msgid "netopia_live_public_key"
+msgstr "Live Public Key"
+
+msgid "netopia_live_public_key_description"
+msgstr "NETOPIA live public key (e.g. live.XXXX-XXXX.public.cer). Used for IPN verification in production."
+
+msgid "netopia_live_private_key"
+msgstr "Live Private Key"
+
+msgid "netopia_live_private_key_description"
+msgstr "NETOPIA live private key (e.g. live.XXXX-XXXX.private.key). Used for payment signing in production."
+
+msgid "netopia_upload_key_file"
+msgstr "Upload key file"
+
+msgid "netopia_current_file"
+msgstr "Uploaded file"
+
+msgid "netopia_delete_key_file"
+msgstr "Delete file"
+
+msgid "netopia_or_paste_key"
+msgstr "Or paste key content manually"
+
+msgid "netopia_key_uploaded"
+msgstr "NETOPIA key file ([key]) uploaded successfully."
+
+msgid "netopia_key_upload_failed"
+msgstr "Failed to upload key file. Please check file permissions."
+
+msgid "netopia_key_invalid_extension"
+msgstr "Invalid key file extension '[ext]'. Allowed: .pem, .key, .cer, .crt, .pub, .txt"
+
+msgid "netopia_key_too_large"
+msgstr "Key file is too large. Maximum size is 64KB."
+
+msgid "netopia_key_empty"
+msgstr "Key file appears to be empty."
+
+msgid "netopia_key_delete_failed"
+msgstr "Failed to delete the key file. Please check file permissions."
+
+msgid "netopia_configuration_error"
+msgstr "NETOPIA Payments is not properly configured. Please contact the store administrator."
+
+msgid "netopia_3ds_session_expired"
+msgstr "Your 3D Secure authentication session has expired. Please try again."
+
+msgid "netopia_order_not_found"
+msgstr "Order not found. Please contact the store administrator."
+
+msgid "netopia_installments_label"
+msgstr "Pay in installments"
+
+msgid "netopia_full_payment"
+msgstr "Full payment (no installments)"
+
+msgid "netopia_installments_suffix"
+msgstr "installments"
+
+msgid "netopia_payment_pending"
+msgstr "Payment is being processed by NETOPIA."
+
+msgid "netopia_payment_approved"
+msgstr "Payment approved by NETOPIA."
+
+msgid "netopia_payment_declined"
+msgstr "Payment was declined by NETOPIA."
+
+msgid "netopia_payment_error"
+msgstr "An error occurred during NETOPIA payment processing."
+
+msgid "netopia_send_payment_link"
+msgstr "NETOPIA Payment Link"
+
+msgid "netopia_payment_link_send_email"
+msgstr "Generate & email link to customer"
+
+msgid "netopia_payment_link_generate_only"
+msgstr "Generate link only (copy manually)"
+
+msgid "netopia_payment_link_label"
+msgstr "NETOPIA Payment Link"
+
+msgid "netopia_payment_link_generated_at"
+msgstr "Generated at"
+
+msgid "netopia_payment_link_emailed_to"
+msgstr "Emailed to"
+
+msgid "netopia_payment_link_no_order"
+msgstr "No order specified for payment link generation."
+
+msgid "netopia_payment_link_error"
+msgstr "Failed to generate NETOPIA payment link: [error]"
+
+msgid "netopia_payment_link_generated"
+msgstr "NETOPIA payment link generated successfully: [url]"
+
+msgid "netopia_payment_link_sent"
+msgstr "Payment link email sent to [email]."
+
+msgid "netopia_payment_link_email_failed"
+msgstr "Payment link was generated but the email could not be sent. You can copy the link manually from the order details."
+
+msgid "netopia_payment_link_email_subject"
+msgstr "Complete your payment for Order #[order_id]"
+
+msgid "netopia_payment_link_email_body"
+msgstr "Dear [customer_name], your payment for Order #[order_id] ([amount]) is pending. Please complete your payment using the secure link below: [payment_url] - If you have already completed this payment, please disregard this email. Thank you, [company_name]"
+
+msgid "netopia_transaction_info"
+msgstr "NETOPIA Transaction"
+
+msgid "netopia_ntp_id_label"
+msgstr "NTP ID"
+
+msgid "netopia_status_label"
+msgstr "Payment Status"
+
+msgid "netopia_amount_label"
+msgstr "Amount"
+
+msgid "netopia_error_code_label"
+msgstr "Error Code"
+
+msgid "netopia_error_message_label"
+msgstr "Error Message"
+
+msgid "netopia_setup_instructions"
+msgstr "To configure NETOPIA Payments, go to Administration > Payment methods, add or edit a payment method, and select NETOPIA Payments as the processor. You will find all settings (API Key, POS Signature, certificates) on the payment method configuration page."

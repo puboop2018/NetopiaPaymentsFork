@@ -311,11 +311,9 @@ class IPN extends BaseHttpClient
     {
         if (function_exists('getallheaders')) {
             $headers = getallheaders();
-            if ($headers !== false) {
-                foreach ($headers as $name => $value) {
-                    if (strcasecmp($name, $headerName) === 0) {
-                        return $value;
-                    }
+            foreach ($headers as $name => $value) {
+                if (strcasecmp($name, $headerName) === 0) {
+                    return $value;
                 }
             }
         }

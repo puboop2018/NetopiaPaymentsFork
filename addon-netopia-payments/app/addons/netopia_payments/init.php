@@ -13,9 +13,8 @@ if (!defined('BOOTSTRAP')) {
     die('Access denied');
 }
 
-// Register the stand-alone PSR-4 autoloader so the addon works in a stock
-// CS-Cart installation without requiring Composer. Safe to co-exist with
-// Composer's autoloader — whichever resolves the class first wins.
+// Register the stand-alone PSR-4 autoloader for Netopia\CsCart\*,
+// Netopia\Payment2\* and Psr\Log\* classes bundled under lib/.
 require_once __DIR__ . '/autoload.php';
 
 fn_register_hooks(
