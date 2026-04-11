@@ -1,5 +1,10 @@
 msgid ""
-msgstr "Content-Type: text/plain; charset=UTF-8"
+msgstr ""
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Pack-Name: English\n"
+"Lang-Code: en\n"
+"Country-Code: US\n"
 
 msgid "netopia_payments"
 msgstr "NETOPIA Payments"
