@@ -1,0 +1,7 @@
+<?php
+// Stub declarations for CS-Cart globals used by the NETOPIA addon.
+// Consumed by PHPStan only — not loaded at runtime.
+
+const AREA = 'C';
+const CART_PRIMARY_CURRENCY = 'RON';
+const BOOTSTRAP = true;

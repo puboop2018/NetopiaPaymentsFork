@@ -2,5 +2,8 @@ parameters:
     level: 6
     paths:
         - src
+        - app/addons/netopia_payments/lib
     excludePaths:
         - vendor
+    scanFiles:
+        - tests/_stubs/cscart.stub

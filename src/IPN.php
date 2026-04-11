@@ -6,6 +6,9 @@ namespace Netopia\Payment2;
 
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use Netopia\Payment2\Enum\JwtAlgorithm;
+use Netopia\Payment2\Enum\PaymentStatus;
+use Netopia\Payment2\Exception\KeyLoadException;
 use Netopia\Payment2\Exception\VerificationFailedException;
 
 /**
@@ -19,6 +22,40 @@ use Netopia\Payment2\Exception\VerificationFailedException;
  */
 class IPN extends BaseHttpClient
 {
+    /** Maximum JWT token size (10 KB) — prevents DoS. */
+    public const int MAX_JWT_TOKEN_SIZE = 10240;
+
+    public const int E_VERIFICATION_FAILED_GENERAL = 0x10000101;
+
+    public const int ERROR_TYPE_NONE      = 0x00;
+    public const int ERROR_TYPE_TEMPORARY = 0x01;
+    public const int ERROR_TYPE_PERMANENT = 0x02;
+
+    // Legacy payment status constants — use Enum\PaymentStatus instead.
+    public const int STATUS_NEW                                   = 1;
+    public const int STATUS_OPENED                                = 2;
+    public const int STATUS_PAID                                  = 3;
+    public const int STATUS_CANCELED                              = 4;
+    public const int STATUS_CONFIRMED                             = 5;
+    public const int STATUS_PENDING                               = 6;
+    public const int STATUS_SCHEDULED                             = 7;
+    public const int STATUS_CREDIT                                = 8;
+    public const int STATUS_CHARGEBACK_INIT                       = 9;
+    public const int STATUS_CHARGEBACK_ACCEPT                     = 10;
+    public const int STATUS_ERROR                                 = 11;
+    public const int STATUS_DECLINED                              = 12;
+    public const int STATUS_FRAUD                                 = 13;
+    public const int STATUS_PENDING_AUTH                          = 14;
+    public const int STATUS_3D_AUTH                               = 15;
+    public const int STATUS_CHARGEBACK_REPRESENTMENT              = 16;
+    public const int STATUS_REVERSED                              = 17;
+    public const int STATUS_PENDING_ANY                           = 18;
+    public const int STATUS_PROGRAMMED_RECURRENT_PAYMENT          = 19;
+    public const int STATUS_CANCELED_PROGRAMMED_RECURRENT_PAYMENT = 20;
+    public const int STATUS_TRIAL_PENDING                         = 21;
+    public const int STATUS_TRIAL                                 = 22;
+    public const int STATUS_EXPIRED                               = 23;
+
     public string $activeKey = '';
 
     /** @var array<string> */
@@ -27,40 +64,6 @@ class IPN extends BaseHttpClient
     public string $hashMethod = '';
     public string $alg = '';
     public string $publicKeyStr = '';
-
-    /** @var array<string> Allowed JWT algorithms (RSA only — never allow 'none' or HMAC). */
-    private const ALLOWED_ALGORITHMS = ['RS256', 'RS384', 'RS512'];
-
-    public const E_VERIFICATION_FAILED_GENERAL = 0x10000101;
-
-    public const ERROR_TYPE_NONE      = 0x00;
-    public const ERROR_TYPE_TEMPORARY = 0x01;
-    public const ERROR_TYPE_PERMANENT = 0x02;
-
-    // Payment status constants
-    public const STATUS_NEW                                  = 1;
-    public const STATUS_OPENED                               = 2;
-    public const STATUS_PAID                                 = 3;
-    public const STATUS_CANCELED                             = 4;
-    public const STATUS_CONFIRMED                            = 5;
-    public const STATUS_PENDING                              = 6;
-    public const STATUS_SCHEDULED                            = 7;
-    public const STATUS_CREDIT                               = 8;
-    public const STATUS_CHARGEBACK_INIT                      = 9;
-    public const STATUS_CHARGEBACK_ACCEPT                    = 10;
-    public const STATUS_ERROR                                = 11;
-    public const STATUS_DECLINED                             = 12;
-    public const STATUS_FRAUD                                = 13;
-    public const STATUS_PENDING_AUTH                         = 14;
-    public const STATUS_3D_AUTH                              = 15;
-    public const STATUS_CHARGEBACK_REPRESENTMENT             = 16;
-    public const STATUS_REVERSED                             = 17;
-    public const STATUS_PENDING_ANY                          = 18;
-    public const STATUS_PROGRAMMED_RECURRENT_PAYMENT         = 19;
-    public const STATUS_CANCELED_PROGRAMMED_RECURRENT_PAYMENT = 20;
-    public const STATUS_TRIAL_PENDING                        = 21;
-    public const STATUS_TRIAL                                = 22;
-    public const STATUS_EXPIRED                              = 23;
 
     /**
      * Verify an IPN callback from NETOPIA.
@@ -80,28 +83,32 @@ class IPN extends BaseHttpClient
 
         try {
             $verificationToken = $this->extractVerificationToken();
-            $jwtParts = $this->parseJwtStructure($verificationToken);
-            $publicKey = $this->loadPublicKey();
-            $objJwt = $this->decodeAndVerifyJwt($verificationToken, $publicKey, $jwtParts['headerAlg']);
+            $jwtParts          = $this->parseJwtStructure($verificationToken);
+            $publicKey         = $this->loadPublicKey();
+            $objJwt            = $this->decodeAndVerifyJwt($verificationToken, $publicKey, $jwtParts['headerAlg']);
             $this->validateJwtClaims($objJwt);
 
-            if ($rawPayload === null) {
-                $rawPayload = file_get_contents('php://input');
-                if ($rawPayload === false) {
-                    $rawPayload = '';
-                }
-            }
+            $rawPayload ??= $this->readStdin();
             $this->verifyPayloadIntegrity($rawPayload, $objJwt);
 
             $ipnData = $this->decodeIpnPayload($rawPayload);
             $this->processPaymentStatus($ipnData);
-        } catch (\Exception $e) {
-            $outputData['errorType']   = self::ERROR_TYPE_PERMANENT;
-            $outputData['errorCode']   = ($e->getCode() !== 0) ? $e->getCode() : self::E_VERIFICATION_FAILED_GENERAL;
+        } catch (\Throwable $e) {
+            $outputData['errorType']    = self::ERROR_TYPE_PERMANENT;
+            $outputData['errorCode']    = ($e->getCode() !== 0) ? $e->getCode() : self::E_VERIFICATION_FAILED_GENERAL;
             $outputData['errorMessage'] = $e->getMessage();
         }
 
         return $outputData;
+    }
+
+    /**
+     * Read and validate the raw IPN body from php://input.
+     */
+    private function readStdin(): string
+    {
+        $raw = file_get_contents('php://input');
+        return $raw === false ? '' : $raw;
     }
 
     /**
@@ -117,8 +124,7 @@ class IPN extends BaseHttpClient
             throw new VerificationFailedException('Missing Verification-Token header');
         }
 
-        // Prevent DoS via oversized tokens (max 10KB)
-        if (strlen($token) > 10240) {
+        if (strlen($token) > self::MAX_JWT_TOKEN_SIZE) {
             throw new VerificationFailedException('Verification-Token exceeds maximum allowed length');
         }
 
@@ -143,10 +149,12 @@ class IPN extends BaseHttpClient
             throw new VerificationFailedException('Invalid JWT header encoding');
         }
 
-        $jwtHeader = json_decode($headerJson);
-        if ($jwtHeader === null || json_last_error() !== JSON_ERROR_NONE) {
+        if (!json_validate($headerJson)) {
             throw new VerificationFailedException('Invalid JWT header JSON');
         }
+
+        /** @var object $jwtHeader */
+        $jwtHeader = json_decode($headerJson, false, flags: JSON_THROW_ON_ERROR);
 
         if (!isset($jwtHeader->typ) || $jwtHeader->typ !== 'JWT') {
             throw new VerificationFailedException('Invalid JWT type');
@@ -160,17 +168,17 @@ class IPN extends BaseHttpClient
     /**
      * Load and validate the public key for signature verification.
      *
-     * @throws VerificationFailedException If the public key is missing or invalid
+     * @throws KeyLoadException If the public key is missing or invalid
      */
     private function loadPublicKey(): \OpenSSLAsymmetricKey
     {
-        if (empty($this->publicKeyStr)) {
-            throw new VerificationFailedException('Public key is not configured');
+        if ($this->publicKeyStr === '') {
+            throw new KeyLoadException('Public key is not configured');
         }
 
         $publicKey = openssl_pkey_get_public($this->publicKeyStr);
         if ($publicKey === false) {
-            throw new VerificationFailedException('Invalid public key format');
+            throw new KeyLoadException('Invalid public key format');
         }
 
         return $publicKey;
@@ -183,21 +191,22 @@ class IPN extends BaseHttpClient
      */
     private function decodeAndVerifyJwt(string $token, \OpenSSLAsymmetricKey $publicKey, string $algorithm): object
     {
-        if (empty($this->alg)) {
+        if ($this->alg === '') {
             throw new VerificationFailedException('JWT algorithm is not configured');
         }
 
-        $jwtAlgorithm = !empty($algorithm) ? $algorithm : $this->alg;
+        $rawAlg = $algorithm !== '' ? $algorithm : $this->alg;
 
-        // Whitelist: only allow RSA algorithms to prevent algorithm substitution attacks
-        if (!in_array($jwtAlgorithm, self::ALLOWED_ALGORITHMS, true)) {
-            throw new VerificationFailedException('JWT algorithm not allowed: ' . $jwtAlgorithm);
+        try {
+            $jwtAlgorithm = JwtAlgorithm::from($rawAlg);
+        } catch (\ValueError) {
+            throw new VerificationFailedException('JWT algorithm not allowed: ' . $rawAlg);
         }
 
         JWT::$timestamp = time() * 1000;
 
         try {
-            return JWT::decode($token, new Key($publicKey, $jwtAlgorithm));
+            return JWT::decode($token, new Key($publicKey, $jwtAlgorithm->value));
         } catch (\Exception $e) {
             throw new VerificationFailedException('JWT decode failed: ' . $e->getMessage());
         }
@@ -210,22 +219,18 @@ class IPN extends BaseHttpClient
      */
     private function validateJwtClaims(object $objJwt): void
     {
-        // Verify issuer — use hash_equals to prevent timing attacks
         if (!isset($objJwt->iss) || !hash_equals('NETOPIA Payments', (string) $objJwt->iss)) {
             throw new VerificationFailedException('JWT issuer verification failed');
         }
 
-        // Verify audience is present
         if (empty($objJwt->aud)) {
             throw new VerificationFailedException('JWT audience is empty');
         }
 
-        // Normalize audience (may be string or array depending on NETOPIA response)
         $actualAud = is_array($objJwt->aud)
             ? ($objJwt->aud[0] ?? '')
             : (string) $objJwt->aud;
 
-        // Verify audience matches active key — use hash_equals to prevent timing attacks
         if (!hash_equals($this->activeKey, (string) $actualAud)) {
             throw new VerificationFailedException('JWT audience does not match active key');
         }
@@ -234,7 +239,7 @@ class IPN extends BaseHttpClient
             throw new VerificationFailedException('JWT audience not found in signature set');
         }
 
-        if (empty($this->hashMethod)) {
+        if ($this->hashMethod === '') {
             throw new VerificationFailedException('Hash method is not configured');
         }
     }
@@ -248,7 +253,6 @@ class IPN extends BaseHttpClient
     {
         $payloadHash = base64_encode(hash($this->hashMethod, $payload, true));
 
-        // Use hash_equals to prevent timing attacks
         if (!isset($objJwt->sub) || !hash_equals((string) $objJwt->sub, $payloadHash)) {
             throw new VerificationFailedException('Payload integrity check failed');
         }
@@ -261,11 +265,11 @@ class IPN extends BaseHttpClient
      */
     private function decodeIpnPayload(string $payload): object
     {
-        $ipnData = json_decode($payload, false);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
+        if (!json_validate($payload)) {
             throw new VerificationFailedException('Invalid IPN payload JSON');
         }
+
+        $ipnData = json_decode($payload, false, flags: JSON_THROW_ON_ERROR);
 
         if (!is_object($ipnData)) {
             throw new VerificationFailedException('IPN payload must be a JSON object');
@@ -284,6 +288,20 @@ class IPN extends BaseHttpClient
         // Status processing is intentionally a no-op in the SDK.
         // Integrators should override this method or handle status
         // in their own callback logic using the IPN status constants.
+    }
+
+    /**
+     * Helper: extract PaymentStatus enum from a decoded IPN payload.
+     *
+     * Returns null if the status is missing or unknown.
+     */
+    public static function extractStatus(object $ipnData): ?PaymentStatus
+    {
+        $status = $ipnData->payment->status ?? null;
+        if (!is_int($status) && !(is_string($status) && ctype_digit($status))) {
+            return null;
+        }
+        return PaymentStatus::tryFrom((int) $status);
     }
 
     /**

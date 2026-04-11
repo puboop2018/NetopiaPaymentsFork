@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Netopia\Payment2;
 
+use Netopia\Payment2\Enum\PaymentMode;
 use Netopia\Payment2\Exception\HttpException;
 use Netopia\Payment2\Exception\InvalidApiKeyException;
 
 class BaseHttpClient
 {
-    private const BASE_URL_LIVE = 'https://secure.netopia-payments.com/api/';
-    private const BASE_URL_SANDBOX = 'https://secure-sandbox.netopia-payments.com/';
-    private const TIMEOUT_SECONDS = 30;
+    public const int TIMEOUT_SECONDS = 30;
 
-    private const HTTP_MESSAGES = [
+    /** @var array<int, string> */
+    private const array HTTP_MESSAGES = [
         200 => 'Request successful',
         400 => 'Bad Request',
         401 => 'Authorization required',
@@ -25,7 +25,12 @@ class BaseHttpClient
 
     protected function getBaseUrl(): string
     {
-        return $this->isLive ? self::BASE_URL_LIVE : self::BASE_URL_SANDBOX;
+        return $this->resolveMode()->baseUrl();
+    }
+
+    private function resolveMode(): PaymentMode
+    {
+        return $this->isLive ? PaymentMode::Live : PaymentMode::Sandbox;
     }
 
     /**
@@ -41,7 +46,7 @@ class BaseHttpClient
      */
     protected function sendHttpRequest(string $endpoint, string $payload, string $method = 'POST'): string
     {
-        if (empty($this->apiKey)) {
+        if ($this->apiKey === '') {
             throw new InvalidApiKeyException('API key must not be empty.');
         }
 
@@ -71,14 +76,12 @@ class BaseHttpClient
         curl_close($ch);
 
         if ($result === false || $error !== '') {
-            $response = [
+            return (string) json_encode([
                 'status'  => 0,
                 'code'    => 0,
                 'message' => 'Connection error occurred',
                 'data'    => null,
-            ];
-
-            return (string) json_encode($response, JSON_FORCE_OBJECT);
+            ], JSON_FORCE_OBJECT);
         }
 
         $response = $this->handleResponse($httpCode, (string) $result);
@@ -93,9 +96,9 @@ class BaseHttpClient
      */
     protected function handleResponse(int $httpCode, string $result): array
     {
-        $responseData = json_decode($result);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $responseData = null;
+        $responseData = null;
+        if (json_validate($result)) {
+            $responseData = json_decode($result, false);
         }
 
         $message = self::HTTP_MESSAGES[$httpCode] ?? 'Unexpected error occurred';
