@@ -14,18 +14,16 @@ declare(strict_types=1);
 
 use Netopia\CsCart\Bootstrap;
 use Netopia\CsCart\Dto\CardData;
+use Netopia\CsCart\Session\ThreeDsSessionStore;
 use Netopia\CsCart\Support\Sanitizer;
 use Netopia\Payment2\Enum\ErrorCode;
 use Netopia\Payment2\Enum\PaymentMode;
 use Netopia\Payment2\Enum\PaymentStatus;
-use Tygh\Registry;
 use Tygh\Tygh;
 
 if (!defined('BOOTSTRAP')) {
     die('Access denied');
 }
-
-require_once Registry::get('config.dir.addons') . 'netopia_payments/func.php';
 
 // ---------------------------------------------------------------------------
 // CALLBACK HANDLING (IPN & 3DS Return)
@@ -128,15 +126,18 @@ if (!$response->isSuccess() || $response->data === null) {
     return;
 }
 
-$data            = $response->data;
-$errorBlock      = $data['error']          ?? $data['data']['error']          ?? [];
-$paymentData     = $data['payment']        ?? $data['data']['payment']        ?? [];
-$customerAction  = $data['customerAction'] ?? $data['data']['customerAction'] ?? [];
+$errorBlock     = $response->errorBlock();
+$paymentData    = $response->paymentData();
+$customerAction = $response->customerAction();
 
-$errorCode = (string) (is_array($errorBlock)   ? ($errorBlock['code'] ?? '')     : '');
-$ntpStatus = (int)    (is_array($paymentData)  ? ($paymentData['status'] ?? 0)   : 0);
-$ntpId     = (string) (is_array($paymentData)  ? ($paymentData['ntpID'] ?? '')   : '');
+$errorCode = (string) ($errorBlock['code']   ?? '');
+$ntpStatus = (int)    ($paymentData['status'] ?? 0);
+$ntpId     = (string) ($paymentData['ntpID']  ?? '');
 $status    = PaymentStatus::tryFrom($ntpStatus);
+
+/** @var \ArrayAccess<string, mixed> $sessionContainer */
+$sessionContainer  = Tygh::$app['session'];
+$threeDsSession    = new ThreeDsSessionStore($sessionContainer);
 
 $paymentInfoUpdate = [
     'netopia_ntp_id' => $ntpId,
@@ -153,9 +154,9 @@ $flow = match (true) {
 
 switch ($flow) {
     case 'three_ds':
-        $authToken = (string) (is_array($customerAction) ? ($customerAction['authenticationToken'] ?? '') : '');
-        $paReq     = (string) (is_array($customerAction) ? ($customerAction['formData']['paReq'] ?? '')   : '');
-        $bankUrl   = (string) (is_array($customerAction) ? ($customerAction['url'] ?? '')                 : '');
+        $authToken = (string) ($customerAction['authenticationToken'] ?? '');
+        $paReq     = (string) ($customerAction['formData']['paReq']  ?? '');
+        $bankUrl   = (string) ($customerAction['url']                 ?? '');
 
         if ($bankUrl === '' || $paReq === '' || !Sanitizer::isSafeHttpsUrl($bankUrl)) {
             $pp_response = [
@@ -168,8 +169,7 @@ switch ($flow) {
         $paymentInfoUpdate['netopia_auth_token'] = $authToken;
         fn_update_order_payment_info($order_id, $paymentInfoUpdate);
 
-        Tygh::$app['session']['netopia_order_id']   = $order_id;
-        Tygh::$app['session']['netopia_payment_id'] = $order_info['payment_id'];
+        $threeDsSession->rememberOrder((int) $order_id, (int) $order_info['payment_id']);
 
         fn_change_order_status($order_id, 'O', '', false);
 
@@ -182,7 +182,7 @@ switch ($flow) {
         exit;
 
     case 'hosted_page':
-        $paymentUrl = (string) (is_array($paymentData) ? ($paymentData['paymentURL'] ?? '') : '');
+        $paymentUrl = (string) ($paymentData['paymentURL'] ?? '');
         if (!Sanitizer::isSafeHttpsUrl($paymentUrl)) {
             $pp_response = [
                 'order_status' => 'F',
@@ -192,11 +192,10 @@ switch ($flow) {
         }
 
         $paymentInfoUpdate['netopia_payment_link']    = $paymentUrl;
-        $paymentInfoUpdate['netopia_payment_link_at'] = date('c');
+        $paymentInfoUpdate['netopia_payment_link_at'] = $bootstrap->clock->now()->format(\DateTimeInterface::ATOM);
         fn_update_order_payment_info($order_id, $paymentInfoUpdate);
 
-        Tygh::$app['session']['netopia_order_id']   = $order_id;
-        Tygh::$app['session']['netopia_payment_id'] = $order_info['payment_id'];
+        $threeDsSession->rememberOrder((int) $order_id, (int) $order_info['payment_id']);
 
         fn_change_order_status($order_id, 'O', '', false);
         fn_redirect($paymentUrl, true);
@@ -213,7 +212,7 @@ switch ($flow) {
 
     case 'failed':
     default:
-        $errorMsg = (string) (is_array($errorBlock) ? ($errorBlock['message'] ?? 'Payment was not approved') : 'Payment was not approved');
+        $errorMsg = (string) ($errorBlock['message'] ?? 'Payment was not approved');
         fn_update_order_payment_info($order_id, $paymentInfoUpdate);
         $pp_response = [
             'order_status'   => $bootstrap->statusMapper->map($ntpStatus, $params),

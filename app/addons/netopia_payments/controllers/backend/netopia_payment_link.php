@@ -9,13 +9,9 @@
  * @package NetopiaPayments
  */
 
-use Tygh\Registry;
-
 if (!defined('BOOTSTRAP')) {
     die('Access denied');
 }
-
-require_once Registry::get('config.dir.addons') . 'netopia_payments/func.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     return [CONTROLLER_STATUS_NO_PAGE];
@@ -58,7 +54,7 @@ if ($mode === 'generate' || $mode === 'send') {
             // Record that email was sent
             fn_update_order_payment_info($order_id, [
                 'netopia_payment_link_email_sent'    => $order_info['email'],
-                'netopia_payment_link_email_sent_at' => date('c'),
+                'netopia_payment_link_email_sent_at' => \Netopia\CsCart\Bootstrap::instance()->clock->now()->format(\DateTimeInterface::ATOM),
             ]);
         } else {
             fn_set_notification('W', __('warning'), __('netopia_payment_link_email_failed'));

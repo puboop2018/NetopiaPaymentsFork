@@ -18,39 +18,12 @@ if (!defined('BOOTSTRAP')) {
 }
 
 use Netopia\CsCart\Bootstrap;
-use Netopia\CsCart\Dto\CardData;
 use Netopia\CsCart\Exception\KeyStorageException;
 use Netopia\CsCart\Session\ThreeDsSessionStore;
 use Netopia\CsCart\Support\CountryCodes;
 use Netopia\CsCart\Support\Sanitizer;
 use Netopia\Payment2\Enum\PaymentMode;
-use Tygh\Registry;
 use Tygh\Tygh;
-
-// ---------------------------------------------------------------------------
-// Legacy constants (retained for backward compatibility with templates / hooks)
-// ---------------------------------------------------------------------------
-
-/** cURL request timeout in seconds. */
-const NETOPIA_API_TIMEOUT = 30;
-
-/** NETOPIA error code: 3D Secure authentication required. */
-const NETOPIA_ERROR_CODE_3DS = '100';
-
-/** NETOPIA error code: redirect to hosted payment page. */
-const NETOPIA_ERROR_CODE_HOSTED_PAGE = '101';
-
-/** NETOPIA status: 3D Secure authentication required. */
-const NETOPIA_STATUS_3DS_REQUIRED = 15;
-
-/** NETOPIA status: payment captured. */
-const NETOPIA_STATUS_PAID = 3;
-
-/** NETOPIA status: payment confirmed (after IPN). */
-const NETOPIA_STATUS_CONFIRMED = 5;
-
-/** Default country code (Romania, ISO 3166-1 numeric). */
-const NETOPIA_DEFAULT_COUNTRY_CODE = 642;
 
 // ---------------------------------------------------------------------------
 // Key management
@@ -232,32 +205,8 @@ function fn_netopia_api_request(string $endpoint, string $json_body, string $api
 }
 
 // ---------------------------------------------------------------------------
-// Payment request building
+// 3D Secure browser fingerprint helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Build the JSON payload for NETOPIA Start payment request.
- *
- * @param array<string, mixed> $processor_params
- * @param array<string, mixed> $order_info
- * @param array<string, mixed> $three_ds_data Legacy shape ignored; live 3DS is rebuilt from $_SERVER/$_POST.
- */
-function fn_netopia_build_start_request(array $processor_params, array $order_info, array $three_ds_data, int $installments = 1): string
-{
-    $bootstrap = Bootstrap::instance();
-    $threeDs   = $bootstrap->threeDsFactory->fromRequest($_SERVER, $_POST);
-
-    $payment_info = is_array($order_info['payment_info'] ?? null) ? $order_info['payment_info'] : [];
-    $card = new CardData(
-        account:    (string) ($payment_info['card_number']  ?? ''),
-        expMonth:   (int)    ($payment_info['expiry_month'] ?? 0),
-        expYear:    (int)    ($payment_info['expiry_year']  ?? 0),
-        secretCode: (string) ($payment_info['cvv2']         ?? ''),
-    );
-
-    /** @phpstan-ignore-next-line array shape comes from CS-Cart, trust by convention */
-    return $bootstrap->payloadBuilder->buildStartRequest($processor_params, $order_info, $threeDs, $installments, $card);
-}
 
 /**
  * Collect 3D Secure browser fingerprint data.
@@ -457,28 +406,4 @@ function fn_netopia_send_payment_link_email(int $order_id, string $payment_url):
     $formattedAmount = (string) fn_format_price($order_info['total'], $currency);
 
     return $sender->send($order_info, $payment_url, $formattedAmount);
-}
-
-// ---------------------------------------------------------------------------
-// Legacy helper retained for callers that still reference the payment processor
-// ---------------------------------------------------------------------------
-
-/**
- * Build the JSON payload for NETOPIA VerifyAuth request.
- */
-function fn_netopia_build_verify_auth_request(string $authentication_token, string $ntp_id, string $pa_res): string
-{
-    return Bootstrap::instance()->payloadBuilder->buildVerifyAuthRequest($authentication_token, $ntp_id, $pa_res);
-}
-
-/**
- * Build the JSON payload for NETOPIA Status query.
- */
-function fn_netopia_build_status_request(string $pos_signature, string $ntp_id, string $order_id): string
-{
-    return (string) json_encode([
-        'posID'   => $pos_signature,
-        'ntpID'   => $ntp_id,
-        'orderID' => $order_id,
-    ]);
 }
