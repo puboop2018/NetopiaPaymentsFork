@@ -1,0 +1,260 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+msgid "netopia_payments"
+msgstr "NETOPIA Payments"
+
+msgid "netopia_payments_description"
+msgstr "Integrează gateway-ul NETOPIA Payments pentru plăți online cu cardul, cu suport pentru 3D Secure și plata în rate."
+
+msgid "netopia_mode"
+msgstr "Mediu"
+
+msgid "netopia_sandbox"
+msgstr "Sandbox (Test)"
+
+msgid "netopia_live"
+msgstr "Live (Producție)"
+
+msgid "netopia_pos_signature"
+msgstr "Semnătură POS"
+
+msgid "netopia_pos_signature_description"
+msgstr "ID-ul semnăturii POS NETOPIA (format: XXXX-XXXX-XXXX-XXXX-XXXX). Îl găsești în panoul de administrare NETOPIA."
+
+msgid "netopia_api_key"
+msgstr "Cheie API"
+
+msgid "netopia_api_key_description"
+msgstr "Cheia API NETOPIA generată din panoul de administrare NETOPIA."
+
+msgid "netopia_currency"
+msgstr "Valută plată"
+
+msgid "netopia_order_currency"
+msgstr "-- Folosește valuta comenzii --"
+
+msgid "netopia_currency_description"
+msgstr "Selectează valuta trimisă către NETOPIA. Alege „Folosește valuta comenzii” pentru a utiliza valuta fiecărei comenzi sau selectează o valută specifică."
+
+msgid "netopia_allow_installments"
+msgstr "Permite plata în rate"
+
+msgid "netopia_max_installments"
+msgstr "Număr maxim de rate"
+
+msgid "netopia_max_installments_description"
+msgstr "Numărul maxim de rate disponibile pentru client (2-36). Se aplică doar când plata în rate este activată."
+
+msgid "netopia_status_mapping_section"
+msgstr "Asociere statusuri comandă"
+
+msgid "netopia_status_mapping_description"
+msgstr "Asociază fiecare status de plată NETOPIA cu un status de comandă CS-Cart. Valorile implicite funcționează pentru majoritatea magazinelor."
+
+msgid "netopia_status_group_success"
+msgstr "Statusuri de succes"
+
+msgid "netopia_status_group_pending"
+msgstr "Statusuri în așteptare / în curs"
+
+msgid "netopia_status_group_cancel"
+msgstr "Statusuri de anulare / rambursare"
+
+msgid "netopia_status_group_fail"
+msgstr "Statusuri de eșec"
+
+msgid "netopia_ntp_status_3"
+msgstr "Plătit"
+
+msgid "netopia_ntp_status_5"
+msgstr "Confirmat"
+
+msgid "netopia_ntp_status_1"
+msgstr "Nou"
+
+msgid "netopia_ntp_status_2"
+msgstr "Deschis"
+
+msgid "netopia_ntp_status_6"
+msgstr "În așteptare"
+
+msgid "netopia_ntp_status_14"
+msgstr "În așteptare autorizare"
+
+msgid "netopia_ntp_status_15"
+msgstr "3D Secure"
+
+msgid "netopia_ntp_status_18"
+msgstr "În așteptare (oricare)"
+
+msgid "netopia_ntp_status_4"
+msgstr "Anulat"
+
+msgid "netopia_ntp_status_8"
+msgstr "Rambursare / Credit"
+
+msgid "netopia_ntp_status_17"
+msgstr "Stornat"
+
+msgid "netopia_ntp_status_11"
+msgstr "Eroare"
+
+msgid "netopia_ntp_status_12"
+msgstr "Respins"
+
+msgid "netopia_ntp_status_13"
+msgstr "Fraudă"
+
+msgid "netopia_ntp_status_23"
+msgstr "Expirat"
+
+msgid "netopia_sandbox_keys_section"
+msgstr "Certificate sandbox (mediul de test)"
+
+msgid "netopia_sandbox_public_key"
+msgstr "Cheie publică sandbox"
+
+msgid "netopia_sandbox_public_key_description"
+msgstr "Cheia publică sandbox NETOPIA (ex. sandbox.XXXX-XXXX.public.cer). Utilizată pentru verificarea IPN în modul test."
+
+msgid "netopia_sandbox_private_key"
+msgstr "Cheie privată sandbox"
+
+msgid "netopia_sandbox_private_key_description"
+msgstr "Cheia privată sandbox NETOPIA (ex. sandbox.XXXX-XXXX.private.key). Utilizată pentru semnarea plăților în modul test."
+
+msgid "netopia_live_keys_section"
+msgstr "Certificate live (mediul de producție)"
+
+msgid "netopia_live_public_key"
+msgstr "Cheie publică live"
+
+msgid "netopia_live_public_key_description"
+msgstr "Cheia publică live NETOPIA (ex. live.XXXX-XXXX.public.cer). Utilizată pentru verificarea IPN în producție."
+
+msgid "netopia_live_private_key"
+msgstr "Cheie privată live"
+
+msgid "netopia_live_private_key_description"
+msgstr "Cheia privată live NETOPIA (ex. live.XXXX-XXXX.private.key). Utilizată pentru semnarea plăților în producție."
+
+msgid "netopia_upload_key_file"
+msgstr "Încarcă fișier cheie"
+
+msgid "netopia_current_file"
+msgstr "Fișier încărcat"
+
+msgid "netopia_delete_key_file"
+msgstr "Șterge fișierul"
+
+msgid "netopia_or_paste_key"
+msgstr "Sau lipește conținutul cheii manual"
+
+msgid "netopia_key_uploaded"
+msgstr "Fișierul cheii NETOPIA ([key]) a fost încărcat cu succes."
+
+msgid "netopia_key_upload_failed"
+msgstr "Încărcarea fișierului cheii a eșuat. Verifică permisiunile fișierului."
+
+msgid "netopia_key_invalid_extension"
+msgstr "Extensie de fișier invalidă „[ext]”. Extensii permise: .pem, .key, .cer, .crt, .pub, .txt"
+
+msgid "netopia_key_too_large"
+msgstr "Fișierul cheii este prea mare. Dimensiunea maximă este 64KB."
+
+msgid "netopia_key_empty"
+msgstr "Fișierul cheii pare să fie gol."
+
+msgid "netopia_key_delete_failed"
+msgstr "Ștergerea fișierului cheii a eșuat. Verifică permisiunile fișierului."
+
+msgid "netopia_configuration_error"
+msgstr "NETOPIA Payments nu este configurat corect. Te rugăm să contactezi administratorul magazinului."
+
+msgid "netopia_3ds_session_expired"
+msgstr "Sesiunea ta de autentificare 3D Secure a expirat. Te rugăm să încerci din nou."
+
+msgid "netopia_order_not_found"
+msgstr "Comanda nu a fost găsită. Te rugăm să contactezi administratorul magazinului."
+
+msgid "netopia_installments_label"
+msgstr "Plătește în rate"
+
+msgid "netopia_full_payment"
+msgstr "Plată integrală (fără rate)"
+
+msgid "netopia_installments_suffix"
+msgstr "rate"
+
+msgid "netopia_payment_pending"
+msgstr "Plata este în curs de procesare de către NETOPIA."
+
+msgid "netopia_payment_approved"
+msgstr "Plata a fost aprobată de NETOPIA."
+
+msgid "netopia_payment_declined"
+msgstr "Plata a fost respinsă de NETOPIA."
+
+msgid "netopia_payment_error"
+msgstr "A apărut o eroare în timpul procesării plății NETOPIA."
+
+msgid "netopia_send_payment_link"
+msgstr "Link de plată NETOPIA"
+
+msgid "netopia_payment_link_send_email"
+msgstr "Generează și trimite linkul clientului prin email"
+
+msgid "netopia_payment_link_generate_only"
+msgstr "Generează doar linkul (copiază manual)"
+
+msgid "netopia_payment_link_label"
+msgstr "Link de plată NETOPIA"
+
+msgid "netopia_payment_link_generated_at"
+msgstr "Generat la"
+
+msgid "netopia_payment_link_emailed_to"
+msgstr "Trimis prin email către"
+
+msgid "netopia_payment_link_no_order"
+msgstr "Nu a fost specificată nicio comandă pentru generarea linkului de plată."
+
+msgid "netopia_payment_link_error"
+msgstr "Generarea linkului de plată NETOPIA a eșuat: [error]"
+
+msgid "netopia_payment_link_generated"
+msgstr "Linkul de plată NETOPIA a fost generat cu succes: [url]"
+
+msgid "netopia_payment_link_sent"
+msgstr "Emailul cu linkul de plată a fost trimis către [email]."
+
+msgid "netopia_payment_link_email_failed"
+msgstr "Linkul de plată a fost generat, dar emailul nu a putut fi trimis. Poți copia linkul manual din detaliile comenzii."
+
+msgid "netopia_payment_link_email_subject"
+msgstr "Finalizează plata pentru comanda #[order_id]"
+
+msgid "netopia_payment_link_email_body"
+msgstr "Bună ziua [customer_name], plata pentru comanda #[order_id] ([amount]) este în așteptare. Te rugăm să finalizezi plata folosind linkul securizat de mai jos: [payment_url] - Dacă ai efectuat deja această plată, te rugăm să ignori acest email. Mulțumim, [company_name]"
+
+msgid "netopia_transaction_info"
+msgstr "Tranzacție NETOPIA"
+
+msgid "netopia_ntp_id_label"
+msgstr "ID NTP"
+
+msgid "netopia_status_label"
+msgstr "Status plată"
+
+msgid "netopia_amount_label"
+msgstr "Sumă"
+
+msgid "netopia_error_code_label"
+msgstr "Cod eroare"
+
+msgid "netopia_error_message_label"
+msgstr "Mesaj eroare"
+
+msgid "netopia_setup_instructions"
+msgstr "Pentru a configura NETOPIA Payments, accesează Administrare > Metode de plată, adaugă sau editează o metodă de plată și selectează NETOPIA Payments ca procesator. Vei găsi toate setările (Cheie API, Semnătură POS, certificate) pe pagina de configurare a metodei de plată."

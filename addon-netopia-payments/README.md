@@ -4,6 +4,12 @@ Self-contained CS-Cart addon package for NETOPIA Payments. This folder
 mirrors the CS-Cart file layout and can be copied directly onto a CS-Cart
 installation — no Composer step is required on the target server.
 
+## Documentation
+
+- Official NETOPIA developer docs: <https://doc.netopia-payments.com/>
+- Merchant admin portal (POS signatures, API keys, key downloads):
+  <https://admin.netopia-payments.com>
+
 ## Contents
 
 ```
@@ -37,8 +43,9 @@ addon-netopia-payments/
 │   │   ├── mail/templates/addons/netopia_payments/
 │   │   └── templates/...
 │   └── themes/responsive/templates/addons/netopia_payments/
-└── var/langs/en/addons/
-    └── netopia_payments.po       # English translations
+└── var/langs/
+    ├── en/addons/netopia_payments.po  # English translations
+    └── ro/addons/netopia_payments.po  # Romanian translations
 ```
 
 ## Installation
@@ -51,6 +58,10 @@ addon-netopia-payments/
 3. Configure a payment method under **Administration → Payment methods**,
    set the processor to *NETOPIA Payments*, and fill in POS Signature,
    API key, and upload the sandbox/live public/private keys.
+4. **Final activation.** Once the technical integration is complete, send
+   an email to [implementare@netopia.ro](mailto:implementare@netopia.ro) to
+   request final POS validation. The NETOPIA technical team will activate
+   your Point of Sale so you can start accepting live payments.
 
 ## Requirements
 
