@@ -28,8 +28,40 @@ final class ThreeDsDataFactory
      */
     public function fromRequest(array $server, array $post): ThreeDsData
     {
+        return $this->build(
+            server:       $server,
+            post:         $post,
+            defaultAgent: 'Unknown',
+        );
+    }
+
+    /**
+     * Default 3DS data for server-side flows (e.g. payment link generation
+     * where there's no live browser context).
+     *
+     * @param array<string, mixed> $server
+     */
+    public function forServerContext(array $server): ThreeDsData
+    {
+        return $this->build(
+            server:       $server,
+            post:         [],
+            defaultAgent: 'NETOPIA Payment Link',
+        );
+    }
+
+    /**
+     * Build a ThreeDsData DTO from a best-effort merge of $server defaults and
+     * optional $post fingerprint fields. When $post is empty this degrades
+     * gracefully to the server-context path.
+     *
+     * @param array<string, mixed> $server
+     * @param array<string, mixed> $post
+     */
+    private function build(array $server, array $post, string $defaultAgent): ThreeDsData
+    {
         return new ThreeDsData(
-            browserUserAgent:    Sanitizer::threeDsField((string) ($server['HTTP_USER_AGENT'] ?? 'Unknown')),
+            browserUserAgent:    Sanitizer::threeDsField((string) ($server['HTTP_USER_AGENT'] ?? $defaultAgent)),
             os:                  php_uname('s'),
             osVersion:           php_uname('r'),
             mobile:              (isset($post['netopia_mobile']) && $post['netopia_mobile'] === 'true') ? 'true' : 'false',
@@ -43,33 +75,6 @@ final class ThreeDsDataFactory
             browserLanguage:     Sanitizer::threeDsField((string) ($post['netopia_language'] ?? ($server['HTTP_ACCEPT_LANGUAGE'] ?? self::DEFAULT_LANG))),
             browserTz:           Sanitizer::threeDsField((string) ($post['netopia_tz'] ?? self::DEFAULT_TZ)),
             browserTzOffset:     Sanitizer::threeDsField((string) ($post['netopia_tz_offset'] ?? '0')),
-            ipAddress:           Sanitizer::ipAddress((string) ($server['REMOTE_ADDR'] ?? self::DEFAULT_IP)),
-        );
-    }
-
-    /**
-     * Default 3DS data for server-side flows (e.g. payment link generation
-     * where there's no live browser context).
-     *
-     * @param array<string, mixed> $server
-     */
-    public function forServerContext(array $server): ThreeDsData
-    {
-        return new ThreeDsData(
-            browserUserAgent:    Sanitizer::threeDsField((string) ($server['HTTP_USER_AGENT'] ?? 'NETOPIA Payment Link')),
-            os:                  php_uname('s'),
-            osVersion:           php_uname('r'),
-            mobile:              'false',
-            screenPoint:         'false',
-            screenPrint:         self::DEFAULT_SCREEN_PRINT,
-            browserColorDepth:   self::DEFAULT_COLOR_DEPTH,
-            browserScreenHeight: self::DEFAULT_SCREEN_H,
-            browserScreenWidth:  self::DEFAULT_SCREEN_W,
-            browserPlugins:      '',
-            browserJavaEnabled:  'false',
-            browserLanguage:     self::DEFAULT_LANG,
-            browserTz:           self::DEFAULT_TZ,
-            browserTzOffset:     '0',
             ipAddress:           Sanitizer::ipAddress((string) ($server['REMOTE_ADDR'] ?? self::DEFAULT_IP)),
         );
     }

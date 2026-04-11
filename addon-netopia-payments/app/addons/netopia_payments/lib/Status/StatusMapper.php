@@ -36,12 +36,7 @@ final class StatusMapper
             return 'O';
         }
 
-        return match ($enum->group()) {
-            'success' => 'P',
-            'cancel'  => 'I',
-            'fail'    => 'F',
-            default   => 'O',
-        };
+        return self::defaultCsCartStatus($enum->group());
     }
 
     /**
@@ -53,19 +48,27 @@ final class StatusMapper
     {
         $definitions = [];
         foreach (PaymentStatus::cases() as $status) {
-            $group = $status->group();
-            $definitions[$status->value] = [
+            $group                        = $status->group();
+            $definitions[$status->value]  = [
                 'label'   => $status->label(),
-                'default' => match ($group) {
-                    'success' => 'P',
-                    'cancel'  => 'I',
-                    'fail'    => 'F',
-                    default   => 'O',
-                },
+                'default' => self::defaultCsCartStatus($group),
                 'group'   => $group,
             ];
         }
 
         return $definitions;
+    }
+
+    /**
+     * Map a NETOPIA status group to the default CS-Cart order status code.
+     */
+    private static function defaultCsCartStatus(string $group): string
+    {
+        return match ($group) {
+            'success' => 'P',
+            'cancel'  => 'I',
+            'fail'    => 'F',
+            default   => 'O',
+        };
     }
 }

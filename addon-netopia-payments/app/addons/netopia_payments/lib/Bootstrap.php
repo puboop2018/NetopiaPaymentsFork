@@ -14,6 +14,7 @@ use Netopia\CsCart\Payment\PaymentLinkEmailSender;
 use Netopia\CsCart\Payment\PaymentLinkService;
 use Netopia\CsCart\Session\ThreeDsSessionStore;
 use Netopia\CsCart\Status\StatusMapper;
+use Netopia\CsCart\Support\ClockInterface;
 use Netopia\CsCart\Support\SystemClock;
 use Netopia\CsCart\ThreeDs\ThreeDsDataFactory;
 use Netopia\CsCart\ThreeDs\ThreeDsReturnHandler;
@@ -36,6 +37,7 @@ final class Bootstrap
     public readonly IpnVerifier $ipnVerifier;
     public readonly StatusMapper $statusMapper;
     public readonly ThreeDsDataFactory $threeDsFactory;
+    public readonly ClockInterface $clock;
     public readonly LoggerInterface $logger;
 
     private function __construct(
@@ -45,10 +47,10 @@ final class Bootstrap
         string $primaryCurrency,
         string $language,
     ) {
-        $clock                = new SystemClock();
+        $this->clock          = new SystemClock();
         $this->logger         = new CsCartLogger();
         $this->payloadBuilder = new PayloadBuilder(
-            clock:           $clock,
+            clock:           $this->clock,
             notifyUrl:       $notifyUrl,
             redirectUrl:     $redirectUrl,
             primaryCurrency: $primaryCurrency,

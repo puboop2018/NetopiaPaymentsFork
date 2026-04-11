@@ -86,9 +86,12 @@
 {if $order_info.payment_info.netopia_payment_link}
 <div class="well well-small" style="margin-top: 10px;">
     <strong><i class="icon-link"></i> {__("netopia_payment_link_label")}:</strong><br/>
-    <a href="{$order_info.payment_info.netopia_payment_link|escape:"html"}" target="_blank" rel="noopener">
+    <a href="{$order_info.payment_info.netopia_payment_link|escape:"html"}" target="_blank" rel="noopener" id="netopia_payment_link_url_{$order_info.order_id}">
         {$order_info.payment_info.netopia_payment_link|escape:"html"}
     </a>
+    <button type="button" class="btn btn-mini cm-netopia-copy-link" data-ca-netopia-link="{$order_info.payment_info.netopia_payment_link|escape:"html"}" style="margin-left: 8px;">
+        <i class="icon-copy"></i> {__("netopia_payment_link_copy")}
+    </button>
     <br/>
     <span class="muted">{__("netopia_payment_link_generated_at")}: {$order_info.payment_info.netopia_payment_link_at|escape:"html"}</span>
     {if $order_info.payment_info.netopia_payment_link_email_sent}
@@ -96,5 +99,37 @@
         <span class="muted">{__("netopia_payment_link_emailed_to")}: {$order_info.payment_info.netopia_payment_link_email_sent|escape:"html"} ({$order_info.payment_info.netopia_payment_link_email_sent_at|escape:"html"})</span>
     {/if}
 </div>
+{literal}
+<script>
+(function() {
+    document.querySelectorAll('.cm-netopia-copy-link').forEach(function(btn) {
+        if (btn.dataset.netopiaBound) return;
+        btn.dataset.netopiaBound = '1';
+        btn.addEventListener('click', function() {
+            var link = btn.getAttribute('data-ca-netopia-link') || '';
+            if (!link) return;
+            var done = function() {
+                var original = btn.innerHTML;
+                btn.innerHTML = '<i class="icon-ok"></i>';
+                setTimeout(function() { btn.innerHTML = original; }, 1500);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(link).then(done).catch(function() {});
+            } else {
+                var ta = document.createElement('textarea');
+                ta.value = link;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'absolute';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); done(); } catch (e) {}
+                document.body.removeChild(ta);
+            }
+        });
+    });
+})();
+</script>
+{/literal}
 {/if}
 {/if}
