@@ -211,6 +211,9 @@ msgstr "Generează doar linkul (copiază manual)"
 msgid "netopia_payment_link_label"
 msgstr "Link de plată NETOPIA"
 
+msgid "netopia_payment_link_copy"
+msgstr "Copiază"
+
 msgid "netopia_payment_link_generated_at"
 msgstr "Generat la"
 
@@ -237,6 +240,24 @@ msgstr "Finalizează plata pentru comanda #[order_id]"
 
 msgid "netopia_payment_link_email_body"
 msgstr "Bună ziua [customer_name], plata pentru comanda #[order_id] ([amount]) este în așteptare. Te rugăm să finalizezi plata folosind linkul securizat de mai jos: [payment_url] - Dacă ai efectuat deja această plată, te rugăm să ignori acest email. Mulțumim, [company_name]"
+
+msgid "netopia_payment_link_email_greeting"
+msgstr "Bună ziua [customer_name],"
+
+msgid "netopia_payment_link_email_intro"
+msgstr "Plata pentru comanda #[order_id] ([amount]) este în așteptare."
+
+msgid "netopia_payment_link_email_cta"
+msgstr "Te rugăm să finalizezi plata folosind linkul securizat de mai jos:"
+
+msgid "netopia_payment_link_email_secure_note"
+msgstr "Acest link te va duce la o pagină securizată NETOPIA unde poți introduce datele cardului."
+
+msgid "netopia_payment_link_email_disregard"
+msgstr "Dacă ai efectuat deja această plată, te rugăm să ignori acest email."
+
+msgid "netopia_payment_link_email_signoff"
+msgstr "Mulțumim,"
 
 msgid "netopia_transaction_info"
 msgstr "Tranzacție NETOPIA"

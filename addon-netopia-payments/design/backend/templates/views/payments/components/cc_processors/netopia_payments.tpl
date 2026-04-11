@@ -3,8 +3,24 @@
  * Displayed in the admin panel when editing a payment method that uses this processor.
  *}
 
-{* Ensure parent form supports file uploads *}
+{* Scoped styles + enctype shim for the payment-method settings form. *}
 {literal}
+<style>
+    .netopia-fieldset-legend { border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 15px; }
+    .netopia-description-mb { margin-bottom: 15px; }
+    .netopia-status-group-title { margin-top: 15px; margin-bottom: 10px; }
+    .netopia-status-group-title:first-of-type { margin-top: 0; }
+    .netopia-status-success { color: #468847; }
+    .netopia-status-pending { color: #c09853; }
+    .netopia-status-cancel  { color: #b94a48; }
+    .netopia-status-fail    { color: #b94a48; }
+    .netopia-upload-row { margin-bottom: 8px; }
+    .netopia-upload-btn { cursor: pointer; }
+    .netopia-file-input { margin-top: 4px; }
+    .netopia-current-file { margin-bottom: 8px; }
+    .netopia-delete-label { display: inline; cursor: pointer; }
+    .netopia-paste-label { margin-bottom: 4px; }
+</style>
 <script>
 (function() {
     var form = document.querySelector('form[name="payments_form"], form.cm-ajax-content-input');
@@ -35,7 +51,7 @@
 <div class="control-group">
     <label class="control-label" for="netopia_pos_signature">{__("netopia_pos_signature")}:</label>
     <div class="controls">
-        <input type="text" name="payment_data[processor_params][pos_signature]" id="netopia_pos_signature" value="{$processor_params.pos_signature|escape:"html"}" size="60" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" />
+        <input type="password" name="payment_data[processor_params][pos_signature]" id="netopia_pos_signature" value="{$processor_params.pos_signature|escape:"html"}" size="60" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" />
         <p class="muted description">{__("netopia_pos_signature_description")}</p>
     </div>
 </div>
@@ -44,7 +60,7 @@
 <div class="control-group">
     <label class="control-label" for="netopia_api_key">{__("netopia_api_key")}:</label>
     <div class="controls">
-        <input type="text" name="payment_data[processor_params][api_key]" id="netopia_api_key" value="{$processor_params.api_key|escape:"html"}" size="60" placeholder="ApiKey_XXXXXXXX" />
+        <input type="password" name="payment_data[processor_params][api_key]" id="netopia_api_key" value="{$processor_params.api_key|escape:"html"}" size="60" autocomplete="off" placeholder="ApiKey_XXXXXXXX" />
         <p class="muted description">{__("netopia_api_key_description")}</p>
     </div>
 </div>
@@ -89,77 +105,36 @@
 {$ntp_statuses = ""|fn_netopia_get_status_definitions}
 
 <fieldset>
-    <legend style="border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 15px;">
+    <legend class="netopia-fieldset-legend">
         {__("netopia_status_mapping_section")}
     </legend>
-    <p class="muted description" style="margin-bottom: 15px;">{__("netopia_status_mapping_description")}</p>
+    <p class="muted description netopia-description-mb">{__("netopia_status_mapping_description")}</p>
 
-    {* Group: Success *}
-    <div style="margin-bottom: 10px;"><strong style="color: #468847;">{__("netopia_status_group_success")}</strong></div>
-    {foreach from=$ntp_statuses key="ntp_code" item="ntp_info"}
-        {if $ntp_info.group == "success"}
-        <div class="control-group">
-            <label class="control-label">{__("netopia_ntp_status_`$ntp_code`")} <span class="muted">(#{$ntp_code})</span>:</label>
-            <div class="controls">
-                <select name="payment_data[processor_params][status_map_{$ntp_code}]">
-                    {foreach from=$order_statuses key="cs_code" item="cs_label"}
-                        <option value="{$cs_code}" {if ($processor_params.status_map_{$ntp_code}|default:$ntp_info.default) == $cs_code}selected="selected"{/if}>[{$cs_code}] {$cs_label}</option>
-                    {/foreach}
-                </select>
-            </div>
-        </div>
-        {/if}
-    {/foreach}
+    {* Render each NETOPIA status group in a fixed order, each with a title band
+       and all matching statuses as drop-downs mapped to CS-Cart order codes. *}
+    {$ntp_status_groups = [
+        ["key" => "success", "label" => "netopia_status_group_success", "css" => "netopia-status-success"],
+        ["key" => "pending", "label" => "netopia_status_group_pending", "css" => "netopia-status-pending"],
+        ["key" => "cancel",  "label" => "netopia_status_group_cancel",  "css" => "netopia-status-cancel"],
+        ["key" => "fail",    "label" => "netopia_status_group_fail",    "css" => "netopia-status-fail"]
+    ]}
 
-    {* Group: Pending *}
-    <div style="margin-bottom: 10px; margin-top: 15px;"><strong style="color: #c09853;">{__("netopia_status_group_pending")}</strong></div>
-    {foreach from=$ntp_statuses key="ntp_code" item="ntp_info"}
-        {if $ntp_info.group == "pending"}
-        <div class="control-group">
-            <label class="control-label">{__("netopia_ntp_status_`$ntp_code`")} <span class="muted">(#{$ntp_code})</span>:</label>
-            <div class="controls">
-                <select name="payment_data[processor_params][status_map_{$ntp_code}]">
-                    {foreach from=$order_statuses key="cs_code" item="cs_label"}
-                        <option value="{$cs_code}" {if ($processor_params.status_map_{$ntp_code}|default:$ntp_info.default) == $cs_code}selected="selected"{/if}>[{$cs_code}] {$cs_label}</option>
-                    {/foreach}
-                </select>
+    {foreach from=$ntp_status_groups item="ntp_group"}
+        <div class="netopia-status-group-title"><strong class="{$ntp_group.css}">{__($ntp_group.label)}</strong></div>
+        {foreach from=$ntp_statuses key="ntp_code" item="ntp_info"}
+            {if $ntp_info.group == $ntp_group.key}
+            <div class="control-group">
+                <label class="control-label">{__("netopia_ntp_status_`$ntp_code`")} <span class="muted">(#{$ntp_code})</span>:</label>
+                <div class="controls">
+                    <select name="payment_data[processor_params][status_map_{$ntp_code}]">
+                        {foreach from=$order_statuses key="cs_code" item="cs_label"}
+                            <option value="{$cs_code}" {if ($processor_params.status_map_{$ntp_code}|default:$ntp_info.default) == $cs_code}selected="selected"{/if}>[{$cs_code}] {$cs_label}</option>
+                        {/foreach}
+                    </select>
+                </div>
             </div>
-        </div>
-        {/if}
-    {/foreach}
-
-    {* Group: Cancel/Refund *}
-    <div style="margin-bottom: 10px; margin-top: 15px;"><strong style="color: #b94a48;">{__("netopia_status_group_cancel")}</strong></div>
-    {foreach from=$ntp_statuses key="ntp_code" item="ntp_info"}
-        {if $ntp_info.group == "cancel"}
-        <div class="control-group">
-            <label class="control-label">{__("netopia_ntp_status_`$ntp_code`")} <span class="muted">(#{$ntp_code})</span>:</label>
-            <div class="controls">
-                <select name="payment_data[processor_params][status_map_{$ntp_code}]">
-                    {foreach from=$order_statuses key="cs_code" item="cs_label"}
-                        <option value="{$cs_code}" {if ($processor_params.status_map_{$ntp_code}|default:$ntp_info.default) == $cs_code}selected="selected"{/if}>[{$cs_code}] {$cs_label}</option>
-                    {/foreach}
-                </select>
-            </div>
-        </div>
-        {/if}
-    {/foreach}
-
-    {* Group: Failure *}
-    <div style="margin-bottom: 10px; margin-top: 15px;"><strong style="color: #b94a48;">{__("netopia_status_group_fail")}</strong></div>
-    {foreach from=$ntp_statuses key="ntp_code" item="ntp_info"}
-        {if $ntp_info.group == "fail"}
-        <div class="control-group">
-            <label class="control-label">{__("netopia_ntp_status_`$ntp_code`")} <span class="muted">(#{$ntp_code})</span>:</label>
-            <div class="controls">
-                <select name="payment_data[processor_params][status_map_{$ntp_code}]">
-                    {foreach from=$order_statuses key="cs_code" item="cs_label"}
-                        <option value="{$cs_code}" {if ($processor_params.status_map_{$ntp_code}|default:$ntp_info.default) == $cs_code}selected="selected"{/if}>[{$cs_code}] {$cs_label}</option>
-                    {/foreach}
-                </select>
-            </div>
-        </div>
-        {/if}
+            {/if}
+        {/foreach}
     {/foreach}
 </fieldset>
 
@@ -167,7 +142,7 @@
 {* ---- SANDBOX CERTIFICATES ---- *}
 {* ================================================================ *}
 <fieldset>
-    <legend style="border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 15px;">
+    <legend class="netopia-fieldset-legend">
         {__("netopia_sandbox_keys_section")}
     </legend>
 
@@ -175,24 +150,24 @@
     <div class="control-group">
         <label class="control-label">{__("netopia_sandbox_public_key")}:</label>
         <div class="controls">
-            <div style="margin-bottom: 8px;">
-                <label for="netopia_sandbox_public_key_file" class="btn" style="cursor:pointer;">
+            <div class="netopia-upload-row">
+                <label for="netopia_sandbox_public_key_file" class="btn netopia-upload-btn">
                     <i class="icon-upload"></i> {__("netopia_upload_key_file")}
                 </label>
-                <input type="file" name="netopia_sandbox_public_key_file" id="netopia_sandbox_public_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" style="margin-top: 4px;" />
+                <input type="file" name="netopia_sandbox_public_key_file" id="netopia_sandbox_public_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" class="netopia-file-input" />
             </div>
             {if $processor_params.sandbox_public_key_file}
-                <div class="well well-small" style="margin-bottom: 8px;">
+                <div class="well well-small netopia-current-file">
                     <i class="icon-file"></i>
                     {__("netopia_current_file")}: <strong>{$processor_params.sandbox_public_key_file|escape:"html"}</strong>
                     &nbsp;
-                    <label style="display:inline; cursor:pointer;">
+                    <label class="netopia-delete-label">
                         <input type="checkbox" name="delete_netopia_sandbox_public_key" value="1" />
                         {__("netopia_delete_key_file")}
                     </label>
                 </div>
             {/if}
-            <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
+            <p class="muted netopia-paste-label">{__("netopia_or_paste_key")}:</p>
             <textarea name="payment_data[processor_params][sandbox_public_key]" id="netopia_sandbox_public_key" cols="65" rows="6" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----">{$processor_params.sandbox_public_key|escape:"html"}</textarea>
             <p class="muted description">{__("netopia_sandbox_public_key_description")}</p>
         </div>
@@ -202,24 +177,24 @@
     <div class="control-group">
         <label class="control-label">{__("netopia_sandbox_private_key")}:</label>
         <div class="controls">
-            <div style="margin-bottom: 8px;">
-                <label for="netopia_sandbox_private_key_file" class="btn" style="cursor:pointer;">
+            <div class="netopia-upload-row">
+                <label for="netopia_sandbox_private_key_file" class="btn netopia-upload-btn">
                     <i class="icon-upload"></i> {__("netopia_upload_key_file")}
                 </label>
-                <input type="file" name="netopia_sandbox_private_key_file" id="netopia_sandbox_private_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" style="margin-top: 4px;" />
+                <input type="file" name="netopia_sandbox_private_key_file" id="netopia_sandbox_private_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" class="netopia-file-input" />
             </div>
             {if $processor_params.sandbox_private_key_file}
-                <div class="well well-small" style="margin-bottom: 8px;">
+                <div class="well well-small netopia-current-file">
                     <i class="icon-file"></i>
                     {__("netopia_current_file")}: <strong>{$processor_params.sandbox_private_key_file|escape:"html"}</strong>
                     &nbsp;
-                    <label style="display:inline; cursor:pointer;">
+                    <label class="netopia-delete-label">
                         <input type="checkbox" name="delete_netopia_sandbox_private_key" value="1" />
                         {__("netopia_delete_key_file")}
                     </label>
                 </div>
             {/if}
-            <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
+            <p class="muted netopia-paste-label">{__("netopia_or_paste_key")}:</p>
             <textarea name="payment_data[processor_params][sandbox_private_key]" id="netopia_sandbox_private_key" cols="65" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----">{$processor_params.sandbox_private_key|escape:"html"}</textarea>
             <p class="muted description">{__("netopia_sandbox_private_key_description")}</p>
         </div>
@@ -230,7 +205,7 @@
 {* ---- LIVE CERTIFICATES ---- *}
 {* ================================================================ *}
 <fieldset>
-    <legend style="border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 15px;">
+    <legend class="netopia-fieldset-legend">
         {__("netopia_live_keys_section")}
     </legend>
 
@@ -238,24 +213,24 @@
     <div class="control-group">
         <label class="control-label">{__("netopia_live_public_key")}:</label>
         <div class="controls">
-            <div style="margin-bottom: 8px;">
-                <label for="netopia_live_public_key_file" class="btn" style="cursor:pointer;">
+            <div class="netopia-upload-row">
+                <label for="netopia_live_public_key_file" class="btn netopia-upload-btn">
                     <i class="icon-upload"></i> {__("netopia_upload_key_file")}
                 </label>
-                <input type="file" name="netopia_live_public_key_file" id="netopia_live_public_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" style="margin-top: 4px;" />
+                <input type="file" name="netopia_live_public_key_file" id="netopia_live_public_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" class="netopia-file-input" />
             </div>
             {if $processor_params.live_public_key_file}
-                <div class="well well-small" style="margin-bottom: 8px;">
+                <div class="well well-small netopia-current-file">
                     <i class="icon-file"></i>
                     {__("netopia_current_file")}: <strong>{$processor_params.live_public_key_file|escape:"html"}</strong>
                     &nbsp;
-                    <label style="display:inline; cursor:pointer;">
+                    <label class="netopia-delete-label">
                         <input type="checkbox" name="delete_netopia_live_public_key" value="1" />
                         {__("netopia_delete_key_file")}
                     </label>
                 </div>
             {/if}
-            <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
+            <p class="muted netopia-paste-label">{__("netopia_or_paste_key")}:</p>
             <textarea name="payment_data[processor_params][live_public_key]" id="netopia_live_public_key" cols="65" rows="6" placeholder="-----BEGIN PUBLIC KEY-----&#10;...&#10;-----END PUBLIC KEY-----">{$processor_params.live_public_key|escape:"html"}</textarea>
             <p class="muted description">{__("netopia_live_public_key_description")}</p>
         </div>
@@ -265,24 +240,24 @@
     <div class="control-group">
         <label class="control-label">{__("netopia_live_private_key")}:</label>
         <div class="controls">
-            <div style="margin-bottom: 8px;">
-                <label for="netopia_live_private_key_file" class="btn" style="cursor:pointer;">
+            <div class="netopia-upload-row">
+                <label for="netopia_live_private_key_file" class="btn netopia-upload-btn">
                     <i class="icon-upload"></i> {__("netopia_upload_key_file")}
                 </label>
-                <input type="file" name="netopia_live_private_key_file" id="netopia_live_private_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" style="margin-top: 4px;" />
+                <input type="file" name="netopia_live_private_key_file" id="netopia_live_private_key_file" accept=".pem,.key,.cer,.crt,.pub,.txt" class="netopia-file-input" />
             </div>
             {if $processor_params.live_private_key_file}
-                <div class="well well-small" style="margin-bottom: 8px;">
+                <div class="well well-small netopia-current-file">
                     <i class="icon-file"></i>
                     {__("netopia_current_file")}: <strong>{$processor_params.live_private_key_file|escape:"html"}</strong>
                     &nbsp;
-                    <label style="display:inline; cursor:pointer;">
+                    <label class="netopia-delete-label">
                         <input type="checkbox" name="delete_netopia_live_private_key" value="1" />
                         {__("netopia_delete_key_file")}
                     </label>
                 </div>
             {/if}
-            <p class="muted" style="margin-bottom: 4px;">{__("netopia_or_paste_key")}:</p>
+            <p class="muted netopia-paste-label">{__("netopia_or_paste_key")}:</p>
             <textarea name="payment_data[processor_params][live_private_key]" id="netopia_live_private_key" cols="65" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----">{$processor_params.live_private_key|escape:"html"}</textarea>
             <p class="muted description">{__("netopia_live_private_key_description")}</p>
         </div>

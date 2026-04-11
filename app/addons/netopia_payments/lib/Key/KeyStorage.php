@@ -21,6 +21,9 @@ final class KeyStorage
     /** File permissions for uploaded key files. */
     private const int FILE_PERMISSIONS = 0640;
 
+    /** Directory permissions for the keys directory. */
+    private const int DIR_PERMISSIONS = 0750;
+
     /** @var list<string> */
     private const array ALLOWED_EXTENSIONS = ['pem', 'key', 'cer', 'crt', 'pub', 'txt'];
 
@@ -122,7 +125,9 @@ final class KeyStorage
             throw new KeyStorageException('Failed to move uploaded key file');
         }
 
-        @chmod($destPath, self::FILE_PERMISSIONS);
+        if (!chmod($destPath, self::FILE_PERMISSIONS)) {
+            throw new KeyStorageException('Failed to set permissions on stored key file');
+        }
 
         return $safeName;
     }
@@ -149,18 +154,18 @@ final class KeyStorage
      */
     private function ensureDir(string $dir): void
     {
-        if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+        if (!is_dir($dir) && !mkdir($dir, self::DIR_PERMISSIONS, true) && !is_dir($dir)) {
             throw new KeyStorageException('Failed to create keys directory: ' . $dir);
         }
 
         $htaccess = $dir . '.htaccess';
-        if (!file_exists($htaccess)) {
-            @file_put_contents($htaccess, "Order Deny,Allow\nDeny from all\n");
+        if (!file_exists($htaccess) && file_put_contents($htaccess, "Order Deny,Allow\nDeny from all\n") === false) {
+            throw new KeyStorageException('Failed to write .htaccess in keys directory: ' . $dir);
         }
 
         $index = $dir . 'index.html';
-        if (!file_exists($index)) {
-            @file_put_contents($index, '');
+        if (!file_exists($index) && file_put_contents($index, '') === false) {
+            throw new KeyStorageException('Failed to write index.html in keys directory: ' . $dir);
         }
     }
 

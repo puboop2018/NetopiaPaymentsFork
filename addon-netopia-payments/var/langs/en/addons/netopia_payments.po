@@ -211,6 +211,9 @@ msgstr "Generate link only (copy manually)"
 msgid "netopia_payment_link_label"
 msgstr "NETOPIA Payment Link"
 
+msgid "netopia_payment_link_copy"
+msgstr "Copy"
+
 msgid "netopia_payment_link_generated_at"
 msgstr "Generated at"
 
@@ -237,6 +240,24 @@ msgstr "Complete your payment for Order #[order_id]"
 
 msgid "netopia_payment_link_email_body"
 msgstr "Dear [customer_name], your payment for Order #[order_id] ([amount]) is pending. Please complete your payment using the secure link below: [payment_url] - If you have already completed this payment, please disregard this email. Thank you, [company_name]"
+
+msgid "netopia_payment_link_email_greeting"
+msgstr "Dear [customer_name],"
+
+msgid "netopia_payment_link_email_intro"
+msgstr "Your payment for Order #[order_id] ([amount]) is pending."
+
+msgid "netopia_payment_link_email_cta"
+msgstr "Please complete your payment using the secure link below:"
+
+msgid "netopia_payment_link_email_secure_note"
+msgstr "This link will take you to a secure NETOPIA payment page where you can enter your card details."
+
+msgid "netopia_payment_link_email_disregard"
+msgstr "If you have already completed this payment, please disregard this email."
+
+msgid "netopia_payment_link_email_signoff"
+msgstr "Thank you,"
 
 msgid "netopia_transaction_info"
 msgstr "NETOPIA Transaction"

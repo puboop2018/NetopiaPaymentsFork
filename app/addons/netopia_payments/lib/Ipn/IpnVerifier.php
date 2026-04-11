@@ -16,6 +16,8 @@ final class IpnVerifier
 {
     public const int MAX_JWT_TOKEN_SIZE = 10240;
 
+    public const int MAX_BODY_SIZE = 65536;
+
     /**
      * @return array{verified: bool, payload: array<string, mixed>|null, error: string}
      */
@@ -27,6 +29,10 @@ final class IpnVerifier
 
         if (strlen($verificationToken) > self::MAX_JWT_TOKEN_SIZE) {
             return $this->fail('JWT token exceeds maximum allowed size');
+        }
+
+        if (strlen($rawPostBody) > self::MAX_BODY_SIZE) {
+            return $this->fail('IPN body exceeds maximum allowed size');
         }
 
         $parts = explode('.', $verificationToken);

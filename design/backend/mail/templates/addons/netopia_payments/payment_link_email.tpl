@@ -9,16 +9,16 @@
  *   $company_name  - Store company name
  *}
 
-<p>Dear {$customer_name|escape:"html"},</p>
+<p>{__("netopia_payment_link_email_greeting", ["[customer_name]" => $customer_name|escape:"html"])}</p>
 
-<p>Your payment for Order <strong>#{$order_id|escape:"html"}</strong> ({$amount|escape:"html"}) is pending.</p>
+<p>{__("netopia_payment_link_email_intro", ["[order_id]" => $order_id|escape:"html", "[amount]" => $amount|escape:"html"])}</p>
 
-<p>Please complete your payment using the secure link below:<br/>
+<p>{__("netopia_payment_link_email_cta")}<br/>
 <a href="{$payment_url|escape:"html"}">{$payment_url|escape:"html"}</a></p>
 
-<p>This link will take you to a secure NETOPIA payment page where you can enter your card details.</p>
+<p>{__("netopia_payment_link_email_secure_note")}</p>
 
-<p>If you have already completed this payment, please disregard this email.</p>
+<p>{__("netopia_payment_link_email_disregard")}</p>
 
-<p>Thank you,<br/>
+<p>{__("netopia_payment_link_email_signoff")}<br/>
 {$company_name|escape:"html"}</p>
